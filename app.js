@@ -155,7 +155,7 @@ const screens = [
     type: "interstitialBubble",
     title: "Forecast accuracy",
     subtitle: "Calculating the accuracy of your personalized blueprint...",
-    speech: "Almost d one! Share a bit more to reveal what’s driving you to get a more accurate reading!",
+    speech: "Almost done! Share a bit more to reveal what’s driving you to get a more accurate reading!",
     ctaText: "Continue",
     autoAdvance: false
   },
@@ -1339,7 +1339,7 @@ function renderContact(screen) {
 
   const emailHint = document.createElement("div");
   emailHint.className = "miniHint";
-  emailHint.textContent = "We’ll send your results here.";
+  emailHint.textContent = "This is where we will send your personalized report.";
 
   emailField.appendChild(emailLabel);
   emailField.appendChild(emailInput);
@@ -1358,7 +1358,7 @@ function renderContact(screen) {
   phoneInput.type = "tel";
   phoneInput.inputMode = "tel";
   phoneInput.autocomplete = "tel";
-  phoneInput.placeholder = "+1 306 555 5555";
+  phoneInput.placeholder = "+1 123 456 7890";
   phoneInput.value = state.answers.phone || "";
 
   const phoneHint = document.createElement("div");
