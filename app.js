@@ -76,7 +76,7 @@ const screens = [
     id: "birthPlace",
     type: "input",
     title: "Where were you born?",
-    subtitle: "City and province/state (ex: Saskatoon, SK).",
+    subtitle: "City and province/state (ex: Dallas, TX).",
     fields: [{ key: "birthPlace", label: "Birthplace", placeholder: "City, Province/State" }],
     validate: (vals) => !!vals.birthPlace?.trim()
   },
@@ -172,7 +172,7 @@ const screens = [
     id: "moneyQuestion1",
     type: "textarea",
     title: "What’s the biggest question about money you want this blueprint to reveal?",
-    subtitle: "Type NA if you don’t have one right now.",
+    subtitle: "Type N/A if you don’t have one right now. Just know it will limit the personalization of the report.",
     placeholder: "Type here...",
     validate: (vals) => !!vals.moneyQuestion1?.trim()
   },
@@ -180,7 +180,7 @@ const screens = [
     id: "moneyQuestion2",
     type: "textarea",
     title: "If this blueprint answered one money question for you… what would you want it to be?",
-    subtitle: "Type NA if you don’t have one right now.",
+    subtitle: "Type N/A if you don’t have one right now. Just know it will limit the level of detail inside the report.",
     placeholder: "Type here...",
     validate: (vals) => !!vals.moneyQuestion2?.trim()
   },
@@ -574,7 +574,7 @@ function renderTobWheel(screen) {
   screenEl.appendChild(h2Title(title));
   if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
 
-  const hours = Array.from({ length: 12 }, (_, i) => String(i + 1));              // 1..12
+  const hours = Array.from({ length: 12 }, (_, i) => String(i + 1));               // 1..12
   const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));// 00..59
   const meridiems = ["AM", "PM"];
 
@@ -590,6 +590,7 @@ function renderTobWheel(screen) {
   const cta = document.createElement("button");
   cta.className = "cta";
   cta.textContent = "Continue";
+  cta.type = "button"; // IMPORTANT
 
   const remember = document.createElement("button");
   remember.type = "button";
@@ -637,6 +638,7 @@ function renderTobWheel(screen) {
 
     const itemH = getItemHeight(scroller);
     const padH = itemH * 2;
+
     const items = Array.from(scroller.querySelectorAll(".dobItem"));
     const idx = items.indexOf(item);
 
@@ -711,12 +713,12 @@ function renderTobWheel(screen) {
 
   // Defaults (feel free to change)
   const now = new Date();
-  let h = now.getHours();                  // 0..23
-  const ap = h >= 12 ? "PM" : "AM";
-  h = h % 12; if (h === 0) h = 12;         // 1..12
+  let hh = now.getHours();                 // 0..23
+  const ap = hh >= 12 ? "PM" : "AM";
+  hh = hh % 12; if (hh === 0) hh = 12;     // 1..12
   const mm = String(now.getMinutes()).padStart(2, "0");
 
-  cols.appendChild(makeWheel({ label: "", key: "tobHour", items: hours, defaultVal: String(h) }));
+  cols.appendChild(makeWheel({ label: "", key: "tobHour", items: hours, defaultVal: String(hh) }));
   cols.appendChild(makeWheel({ label: "", key: "tobMinute", items: minutes, defaultVal: mm }));
   cols.appendChild(makeWheel({ label: "", key: "tobMeridiem", items: meridiems, defaultVal: ap }));
 
@@ -733,19 +735,32 @@ function renderTobWheel(screen) {
   remember.addEventListener("click", () => {
     state.answers.birthTime = "Unknown";
     cta.disabled = false;
-    // Optional: visually de-emphasize selection
-    screenEl.querySelectorAll(".dobItem").forEach(el => el.classList.remove("isSelected"));
+
+    // Optional: visually de-emphasize selection (ONLY within this screen)
+    wrap.querySelectorAll(".dobItem").forEach(el => el.classList.remove("isSelected"));
   });
 
-  screenEl.appendChild(remember);
+  // Actions wrapper so link ALWAYS sits between box + button (desktop + mobile)
+  const actions = document.createElement("div");
+  actions.className = "tobActions";
+  actions.appendChild(remember);
+  actions.appendChild(cta);
+  screenEl.appendChild(actions);
 
-  // initialize computed time
-  setBirthTimeString();
-  cta.disabled = !state.answers.birthTime;
+  // Ensure computed time is set AFTER initial wheel selection paints
+  requestAnimationFrame(() => {
+    setBirthTimeString();
+    cta.disabled = !state.answers.birthTime;
+  });
 
-  cta.addEventListener("click", next);
-  screenEl.appendChild(cta);
+  // Continue
+  cta.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (cta.disabled) return;
+    next();
+  });
 }
+
 
 /* =========================================================
    Interstitial #1: animated calculating rows
@@ -759,6 +774,10 @@ function renderInterstitialCalc(screen) {
 
   const orb = document.createElement("div");
   orb.className = "calcOrb";
+
+  const rings = document.createElement("div");
+  rings.className = "radarRings";
+  orb.appendChild(rings);
 
   const list = document.createElement("div");
   list.className = "calcList";
@@ -812,6 +831,7 @@ function renderInterstitialCalc(screen) {
 
   setTimeout(next, screen.autoAdvanceMs || 3200);
 }
+
 
 /* =========================================================
    Interstitial #2: bubble fill
