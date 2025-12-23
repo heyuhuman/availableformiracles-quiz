@@ -1127,44 +1127,67 @@ function renderInterstitialCalc(screen) {
 }
 
 /* =========================================================
-   Interstitial #2 (Forecast Accuracy) — MATCHES MASTER HTML
-   - Renders inside <section id="screen" class="screen">
-   - Uses .faStage/.faTitle/.faSubtitle/.faOrbWrap/.faStars/.faOrb/.faMist/.faFill/.faPercent
-   - Message + Continue appear ONLY after 78% fill completes
+   Interstitial #2 (Forecast Accuracy) — bubbleWrap version
+   - Matches your "INTERSTITIAL #2 ONLY" CSS classnames
+   - Speech + Continue appear ONLY after fill completes
    ========================================================= */
-function faBuildStars(starsWrap) {
-  starsWrap.innerHTML = "";
-  for (let i = 0; i < STAR_COUNT; i++) {
-    const s = document.createElement("span");
-    const x = Math.random() * 100;
-    const y = Math.random() * 100;
-    const op = 0.25 + Math.random() * 0.55;
-    const tw = 1200 + Math.random() * 2600;
-    const dr = 4200 + Math.random() * 5400;
-    const size = (Math.random() < 0.22) ? 3 : 2;
 
-    s.style.left = x + "%";
-    s.style.top = y + "%";
-    s.style.width = size + "px";
-    s.style.height = size + "px";
-    s.style.setProperty("--op", op.toFixed(2));
-    s.style.setProperty("--tw", tw.toFixed(0) + "ms");
-    s.style.setProperty("--dr", dr.toFixed(0) + "ms");
-    starsWrap.appendChild(s);
+const ORBIT_DOT_COUNT = 12;
+const LIQUID_SPARKLE_COUNT = 18;
+
+function buildCosmosStars(el, count = STAR_COUNT) {
+  el.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement("span");
+    s.style.left = Math.random() * 100 + "%";
+    s.style.top = Math.random() * 100 + "%";
+    s.style.width = s.style.height = Math.random() < 0.18 ? "2px" : "1px";
+    s.style.setProperty("--op", (0.25 + Math.random() * 0.6).toFixed(2));
+    s.style.setProperty("--tw", 1200 + Math.random() * 2800 + "ms");
+    s.style.setProperty("--dr", 6000 + Math.random() * 9000 + "ms");
+    el.appendChild(s);
   }
 }
 
-function faAnimateFill(percentEl, fillEl, to, durationMs, onDone) {
+function buildOrbitDots(el, count = ORBIT_DOT_COUNT) {
+  el.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const d = document.createElement("span");
+    d.className = "orbitDot";
+    d.style.setProperty("--a", Math.random() * 360 + "deg");
+    d.style.setProperty("--r", 112 + Math.random() * 44 + "px");
+    d.style.setProperty("--d", 10 + Math.random() * 16 + "s");
+    d.style.setProperty("--sz", Math.random() < 0.25 ? "4px" : "3px");
+    el.appendChild(d);
+  }
+}
+
+function buildLiquidSparkles(el) {
+  el.innerHTML = "";
+  for (let i = 0; i < LIQUID_SPARKLE_COUNT; i++) {
+    const s = document.createElement("span");
+    s.style.left = Math.random() * 100 + "%";
+    s.style.top = 70 + Math.random() * 40 + "%";
+    s.style.setProperty("--rise", 2200 + Math.random() * 2200 + "ms");
+    s.style.setProperty("--tw", 900 + Math.random() * 1600 + "ms");
+    s.style.setProperty("--op", (0.15 + Math.random() * 0.7).toFixed(2));
+    s.style.animationDelay = Math.random() * 2400 + "ms";
+    s.style.width = s.style.height = Math.random() < 0.35 ? "2px" : "3px";
+    el.appendChild(s);
+  }
+}
+
+function animateFill(percentEl, liquidEl, target, duration, onDone) {
   const start = performance.now();
   const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
   function tick(now) {
-    const t = Math.min(1, (now - start) / durationMs);
+    const t = Math.min(1, (now - start) / duration);
     const eased = easeOutCubic(t);
-    const current = Math.round(to * eased);
+    const value = Math.round(target * eased);
 
-    percentEl.textContent = current + "%";
-    fillEl.style.height = current + "%";
+    percentEl.textContent = value + "%";
+    liquidEl.style.height = value + "%";
 
     if (t < 1) requestAnimationFrame(tick);
     else if (typeof onDone === "function") onDone();
@@ -1173,95 +1196,118 @@ function faAnimateFill(percentEl, fillEl, to, durationMs, onDone) {
   requestAnimationFrame(tick);
 }
 
-function renderForecastAccuracyOrb(mountEl, opts = {}) {
-  const percentTarget = opts.percent ?? TARGET_PERCENT;
-  const duration = opts.durationMs ?? FILL_DURATION_MS;
-
-  mountEl.innerHTML = "";
-
-  const wrap = document.createElement("div");
-  wrap.className = "faOrbWrap";
-
-  const stars = document.createElement("div");
-  stars.className = "faStars";
-
-  const orb = document.createElement("div");
-  orb.className = "faOrb";
-
-  const fill = document.createElement("div");
-  fill.className = "faFill";
-  fill.style.height = "0%";
-
-  const mist = document.createElement("div");
-  mist.className = "faMist";
-
-  const pct = document.createElement("div");
-  pct.className = "faPercent";
-  pct.textContent = "0%";
-
-  orb.appendChild(fill);
-  orb.appendChild(mist);
-  orb.appendChild(pct);
-
-  wrap.appendChild(stars);
-  wrap.appendChild(orb);
-  mountEl.appendChild(wrap);
-
-  faBuildStars(stars);
-
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      faAnimateFill(pct, fill, percentTarget, duration, resolve);
-    });
-  });
-}
-
 function renderInterstitialBubble(screen) {
   const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
 
-  const stage = document.createElement("div");
-  stage.className = "faStage";
+  // Title/subtitle use your existing global helpers (.title/.subtitle)
+  screenEl.appendChild(h2Title(title));
+  screenEl.appendChild(pSub(screen.subtitle || "Calculating the accuracy of your personalized blueprint..."));
 
-  const h = document.createElement("h2");
-  h.className = "faTitle";
-  h.textContent = title;
+  const wrap = document.createElement("div");
+  wrap.className = "bubbleWrap";
 
-  const p = document.createElement("p");
-  p.className = "faSubtitle";
-  p.textContent = screen.subtitle || "Calculating the accuracy of your personalized blueprint...";
+  const cosmos = document.createElement("div");
+  cosmos.className = "cosmos";
+  const cosmosStars = document.createElement("div");
+  cosmosStars.className = "cosmosStars";
+  cosmos.appendChild(cosmosStars);
+  wrap.appendChild(cosmos);
 
-  const mount = document.createElement("div");
-  mount.id = "forecastOrbMount";
+  const halo = document.createElement("div");
+  halo.className = "bubbleHalo";
+  wrap.appendChild(halo);
 
-  const msg = document.createElement("div");
-  msg.className = "faAfterMsg";
-  msg.textContent =
+  const orbit = document.createElement("div");
+  orbit.className = "bubbleOrbit";
+  wrap.appendChild(orbit);
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+
+  const glass = document.createElement("div");
+  glass.className = "bubbleGlass";
+
+  const aurora = document.createElement("div");
+  aurora.className = "aurora oilslick";
+
+  const liquid = document.createElement("div");
+  liquid.className = "liquid";
+  liquid.style.height = "0%";
+
+  const waveBack = document.createElement("div");
+  waveBack.className = "wave waveBack";
+
+  const waveFront = document.createElement("div");
+  waveFront.className = "wave waveFront";
+
+  const sparkles = document.createElement("div");
+  sparkles.className = "liquidSparkles";
+
+  const percent = document.createElement("div");
+  percent.className = "percent";
+  percent.textContent = "0%";
+
+  liquid.appendChild(waveBack);
+  liquid.appendChild(waveFront);
+  liquid.appendChild(sparkles);
+
+  bubble.appendChild(glass);
+  bubble.appendChild(aurora);
+  bubble.appendChild(liquid);
+  bubble.appendChild(percent);
+
+  wrap.appendChild(bubble);
+  screenEl.appendChild(wrap);
+
+  // Speech (hidden until done)
+  const speech = document.createElement("div");
+  speech.className = "speech";
+  speech.style.opacity = "0";
+  speech.style.transform = "translateY(8px)";
+  speech.style.pointerEvents = "none";
+
+  const speechBubble = document.createElement("div");
+  speechBubble.className = "speechBubble";
+  speechBubble.textContent =
     screen.speech || "Drop the Share a bit more to reveal what’s driving you to get a more accurate reading!";
 
+  const dot = document.createElement("div");
+  dot.className = "avatarDot";
+
+  speech.appendChild(speechBubble);
+  speech.appendChild(dot);
+  screenEl.appendChild(speech);
+
+  // CTA (hidden until done)
   const cta = document.createElement("button");
-  cta.className = "cta faAfterCta";
+  cta.className = "cta";
   cta.type = "button";
   cta.textContent = screen.ctaText || "Continue";
+  cta.style.opacity = "0";
+  cta.style.transform = "translateY(10px)";
+  cta.style.pointerEvents = "none";
   cta.addEventListener("click", next);
+  screenEl.appendChild(cta);
 
-  stage.appendChild(h);
-  stage.appendChild(p);
-  stage.appendChild(mount);
-  stage.appendChild(msg);
-  stage.appendChild(cta);
+  // Visuals
+  buildCosmosStars(cosmosStars, STAR_COUNT);
+  buildOrbitDots(orbit, ORBIT_DOT_COUNT);
+  buildLiquidSparkles(sparkles);
 
-  screenEl.appendChild(stage);
+  // Fill → then show speech + CTA
+  animateFill(percent, liquid, TARGET_PERCENT, FILL_DURATION_MS, () => {
+    speech.style.transition = "opacity .35s ease, transform .35s ease";
+    speech.style.opacity = "1";
+    speech.style.transform = "translateY(0)";
+    speech.style.pointerEvents = "auto";
 
-  // ensure hidden first (CSS uses opacity/transform/pointer-events)
-  msg.classList.remove("show");
-  cta.classList.remove("show");
-
-  renderForecastAccuracyOrb(mount, { percent: TARGET_PERCENT, durationMs: FILL_DURATION_MS })
-    .then(() => {
-      setTimeout(() => msg.classList.add("show"), 250);
-      setTimeout(() => cta.classList.add("show"), 700);
-    });
+    cta.style.transition = "opacity .4s ease, transform .4s ease";
+    cta.style.opacity = "1";
+    cta.style.transform = "translateY(0)";
+    cta.style.pointerEvents = "auto";
+  });
 }
+
 
 /* =========================================================
    CONTACT SCREEN (Email + Phone) + SUBMIT TO FORMSPARK
