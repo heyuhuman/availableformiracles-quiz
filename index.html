@@ -1,37 +1,13 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Money Pattern Quiz</title>
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-
-  <body>
-    <div class="app" id="moneyQuiz">
-      <header class="topbar">
-        <button class="icon-btn" id="backBtn" aria-label="Go back" title="Back">
-          ←
-        </button>
-
-        <div class="progress-wrap" aria-label="Progress">
-          <div class="progress-track">
-            <div class="progress-fill" id="progressFill"></div>
-          </div>
-        </div>
-
-        <div class="step-count" id="stepCount">1/12</div>
-      </header>
-
-      <main class="stage">
-        <section class="screen fade-in" id="screenRoot"></section>
-      </main>
-
-      <footer class="footer">
-        <button class="primary" id="continueBtn" type="button">Continue</button>
-      </footer>
-    </div>
-
-    <script src="./app.js"></script>
-  </body>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Money Pattern Quiz</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script defer src="app.js"></script>
+</body>
 </html>
