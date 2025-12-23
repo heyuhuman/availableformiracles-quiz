@@ -3,7 +3,7 @@
   /* Soft celestial palette */
   --bg1:#07080f;      /* near-black night */
   --bg2:#0b0f1f;      /* deep indigo */
-  --bg3:#121833;      /* twilight blue */
+  --bg3:#1f0118;      /* twilight blue */
 
   --moon:#f3eddc;     /* warm moonlight */
   --lavender: rgba(180,160,255,.18);
@@ -135,7 +135,7 @@ body::before{
   position:absolute; inset:0 auto 0 0;
   width:0%;
   border-radius:999px;
-  background: linear-gradient(90deg, rgba(180,160,255,.75), var(--rose45));
+  background: #e75480;
 
 }
 
@@ -210,11 +210,112 @@ body::before{
   display:grid;
   place-items:center;
   font-size:20px;
-  background: var(--rose);
-  color:#fff;
-  border:1px solid rgba(255,255,255,.20);
+  background: rgba(231,84,128,.20);
+  color:white;
+  border:1px solid rgba(231,84,128,.40);
   box-shadow: 0 10px 22px rgba(231,84,128,.20);
 }
+/* ===== DOB Wheel (clean) ===== */
+.dobWrap{
+  width: min(520px, 92vw);
+  margin: 18px auto 0;
+}
+
+.dobWheelBox{
+  position: relative;
+  border-radius: 16px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  padding: 14px;
+  overflow: hidden;
+}
+
+.dobCols{
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+
+.dobColLabel{
+  font-size: 12px;
+  color: rgba(255,255,255,.55);
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+/* Wheel */
+.dobWheel{
+  height: 170px;                 /* visible window */
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 0;                    /* IMPORTANT: no extra padding here */
+}
+.dobWheel::-webkit-scrollbar{ display:none; }
+
+/* padding blocks so center selection works */
+.dobPad{
+  height: 88px;                  /* 2 * row height */
+}
+
+/* rows */
+.dobItem{
+  height: 44px;
+  line-height: 44px;             /* ensures true vertical centering */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  font-family: ui-serif, Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  color: rgba(255,255,255,.42);
+  user-select: none;
+  transition: color .15s ease, transform .15s ease;
+}
+
+.dobItem.isSelected{
+  color: rgba(255,255,255,.95);
+  transform: translateZ(0);
+}
+
+/* center highlight band (lines) */
+.dobLines{
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 50%;
+  transform: translateY(calc(-50% + 1px));
+  height: 44px;
+  pointer-events: none;
+  border-top: 1px solid rgba(255,255,255,.22);
+  border-bottom: 1px solid rgba(255,255,255,.22);
+  z-index: 3;
+}
+
+/* subtle fade at top/bottom like iOS wheels */
+.dobWheelBox::before,
+.dobWheelBox::after{
+  content:"";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 44px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.dobWheelBox::before{
+  top: 0;
+  background: linear-gradient(180deg, rgba(7,8,15,.95), rgba(7,8,15,0));
+}
+
+.dobWheelBox::after{
+  bottom: 0;
+  background: linear-gradient(0deg, rgba(7,8,15,.95), rgba(7,8,15,0));
+}
+
 
 /* ====== Inputs ====== */
 .formWrap{
@@ -262,13 +363,14 @@ body::before{
   width:min(520px, 92vw);
   height:56px;
   border-radius:14px;
-  border:1px solid rgba(255,255,255,.16);
+  border:1px solid rgba(255,255,255,.0.16);
   cursor:pointer;
   font-family: ui-serif, Georgia, "Times New Roman", serif;
   font-weight: 600;
-  letter-spacing: .35px;
+  letter-spacing: 1.5px;
   font-size:18px;
   color:rgba(255,255,255,.92);
+  text-transform: uppercase;
 
   /* tighter, richer metal */
   background:
@@ -329,6 +431,7 @@ body::before{
     0 14px 34px rgba(0,0,0,.55),
     inset 0 1px 0 rgba(255,255,255,.08),
     inset 0 -14px 22px rgba(0,0,0,.80);
+  
 }
 
 /* disabled still looks intentional */
