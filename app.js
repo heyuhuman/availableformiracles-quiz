@@ -1,7 +1,7 @@
 /* =========================================================
-   FULL SURVEY FLOW (integrated)
+   FULL SURVEY FLOW (clean rebuild)
    - screens config drives everything
-   - answers stored in state.answers
+   - answers stored in state.answers (by field keys + screen ids where relevant)
    - scoring stored in state.score + state.auditTrail
    ========================================================= */
 
@@ -14,7 +14,7 @@ const SPARKLE_COUNT = 18;
 /* ------- Global state ------- */
 const state = {
   idx: 0,
-  answers: {},        // { screenId: value }
+  answers: {},        // stores values by key (e.g., firstName, dob, month/day/year, etc.)
   score: {            // archetype totals
     STABILITY: 0,
     EXPANSION: 0,
@@ -32,8 +32,7 @@ const backBtn = document.getElementById("backBtn");
 
 /* =========================================================
    SCREENS CONFIG
-   Replace questions/options with your final list.
-   --------------------------------------------------------- */
+   ========================================================= */
 const screens = [
   {
     id: "gender",
@@ -47,6 +46,7 @@ const screens = [
     ],
     nextOnSelect: true
   },
+
   {
     id: "firstName",
     type: "input",
@@ -55,22 +55,23 @@ const screens = [
     fields: [{ key: "firstName", label: "First name", placeholder: "Type your first name..." }],
     validate: (vals) => !!vals.firstName?.trim()
   },
+
+  /* DOB WHEEL (not free text) */
   {
     id: "dob",
-    type: "input",
+    type: "dobWheel",
     title: (s) => `Nice to meet you, ${s.answers.firstName || "love"}. When were you born?`,
-    subtitle: "Please format in YEAR / MONTH / DAY.",
-    fields: [{ key: "dob", label: "Date of birth", placeholder: "YYYY-MM-DD" }],
-    validate: (vals) => !!vals.dob?.trim()
+    subtitle: "Scroll month, day, and year."
   },
+
   {
-    id: "birthTime",
-    type: "input",
-    title: "Do you know your birth time?",
-    subtitle: "If you don’t remember, type “Unknown”.",
-    fields: [{ key: "birthTime", label: "Time of birth", placeholder: "e.g., 2:00 AM (or Unknown)" }],
-    validate: (vals) => !!vals.birthTime?.trim()
-  },
+  id: "birthTime",
+  type: "tobWheel",
+  title: "Do you know your birth time?",
+  subtitle: "This helps us find out where planets were placed in the sky at the moment of your birth",
+  rememberLinkText: "I don’t remember"
+},
+
   {
     id: "birthPlace",
     type: "input",
@@ -84,14 +85,14 @@ const screens = [
   {
     id: "interstitial1",
     type: "interstitialCalc",
-    title: "Aligning...",
-    subtitle: "One moment while we connect the dots.",
+    title: "Collecting Your Charts...",
+    subtitle: "Your money blueprint has an energetic imprint from when you were born. One moment while we connect the dots.",
     rows: [
-      { icon: "✨", text: "Reading your stability vs. expansion baseline" },
-      { icon: "🧠", text: "Detecting your safety signals around money" },
+      { icon: "✨", text: "Reading your birth set points vs. expansion baseline" },
+      { icon: "🧠", text: "Detecting your internal safety DNA around money" },
       { icon: "🧬", text: "Mapping your energetic coding markers" },
-      { icon: "🧿", text: "Identifying the money story running in the background" },
-      { icon: "🔮", text: "Calibrating your next best shift" }
+      { icon: "🧿", text: "Reading the energetic birth imprint" },
+      { icon: "🔮", text: "Generating the next questions based on your money blueprint" }
     ],
     autoAdvanceMs: 3600
   },
@@ -112,6 +113,7 @@ const screens = [
     ],
     nextOnSelect: true
   },
+
   {
     id: "moneyEmotion",
     type: "choice",
@@ -126,6 +128,7 @@ const screens = [
     ],
     nextOnSelect: true
   },
+
   {
     id: "manifestation",
     type: "choice",
@@ -139,6 +142,7 @@ const screens = [
     ],
     nextOnSelect: true
   },
+
   {
     id: "commitment",
     type: "choice",
@@ -153,19 +157,17 @@ const screens = [
     nextOnSelect: true
   },
 
-  /* -------- Interstitial #2 (your bubble) -------- */
+  /* -------- Interstitial #2 -------- */
   {
     id: "interstitial2",
     type: "interstitialBubble",
     title: "Forecast accuracy",
     subtitle: "Calculating your cosmic energy and personalized blueprint...",
     speech: "Share a bit more to reveal what’s driving you to get a more accurate reading!",
-    autoAdvance: false, // continue button controls next
-    progressOverride: "34%", // matches your screenshot (optional)
-    stepOverride: "6/14"      // optional
+    autoAdvance: false
   },
 
-  /* -------- Your Q9 text input (required, allow NA) -------- */
+  /* -------- Open responses -------- */
   {
     id: "moneyQuestion1",
     type: "textarea",
@@ -193,31 +195,24 @@ const screens = [
 ];
 
 /* =========================================================
-   RENDERING
+   RENDERING HELPERS
    ========================================================= */
-
 function totalSteps() {
   return screens.length;
 }
 
 function setHeaderProgress() {
   const stepText = `${state.idx + 1}/${totalSteps()}`;
-  stepLabel.textContent = stepText;
+  if (stepLabel) stepLabel.textContent = stepText;
 
-  // default progress = % through screens
   const pct = Math.round(((state.idx + 1) / totalSteps()) * 100);
-  progressFill.style.width = pct + "%";
+  if (progressFill) progressFill.style.width = pct + "%";
 
-  // allow overrides on special screens
-  const scr = screens[state.idx];
-  if (scr?.progressOverride) progressFill.style.width = scr.progressOverride;
-  if (scr?.stepOverride) stepLabel.textContent = scr.stepOverride;
-
-  backBtn.style.visibility = state.idx === 0 ? "hidden" : "visible";
+  if (backBtn) backBtn.style.visibility = state.idx === 0 ? "hidden" : "visible";
 }
 
 function clearScreen() {
-  screenEl.innerHTML = "";
+  if (screenEl) screenEl.innerHTML = "";
 }
 
 function h2Title(text) {
@@ -252,12 +247,10 @@ function back() {
 function applyScore(screen, option) {
   if (!option?.score) return;
 
-  // add to totals
   Object.entries(option.score).forEach(([k, v]) => {
     state.score[k] = (state.score[k] || 0) + v;
   });
 
-  // add audit trail
   state.auditTrail.push({
     qid: screen.id,
     question: typeof screen.title === "function" ? screen.title(state) : screen.title,
@@ -266,6 +259,9 @@ function applyScore(screen, option) {
   });
 }
 
+/* =========================================================
+   SCREEN RENDERERS
+   ========================================================= */
 function renderChoice(screen) {
   const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
 
@@ -292,12 +288,10 @@ function renderChoice(screen) {
 
     btn.addEventListener("click", () => {
       state.answers[screen.id] = opt.value;
-
-      // scoring (if present)
       applyScore(screen, opt);
 
       if (screen.nextOnSelect) next();
-      else render(); // re-render if needed
+      else render();
     });
 
     list.appendChild(btn);
@@ -305,7 +299,6 @@ function renderChoice(screen) {
 
   screenEl.appendChild(list);
 
-  // If not auto-next, show Continue
   if (!screen.nextOnSelect) {
     const cta = document.createElement("button");
     cta.className = "cta";
@@ -325,7 +318,10 @@ function renderInput(screen) {
   const wrap = document.createElement("div");
   wrap.className = "formWrap";
 
-  const values = {};
+  const cta = document.createElement("button");
+  cta.className = "cta";
+  cta.textContent = "Continue";
+
   screen.fields.forEach(f => {
     const field = document.createElement("div");
     field.className = "field";
@@ -340,14 +336,9 @@ function renderInput(screen) {
     input.value = state.answers[f.key] || "";
 
     input.addEventListener("input", () => {
-      values[f.key] = input.value;
-      // live store
-      state.answers[f.key] = input.value;
+      state.answers[f.key] = input.value; // store by key
       cta.disabled = screen.validate ? !screen.validate(state.answers) : false;
     });
-
-    // init values
-    values[f.key] = input.value;
 
     field.appendChild(label);
     field.appendChild(input);
@@ -356,16 +347,8 @@ function renderInput(screen) {
 
   screenEl.appendChild(wrap);
 
-  const cta = document.createElement("button");
-  cta.className = "cta";
-  cta.textContent = "Continue";
   cta.disabled = screen.validate ? !screen.validate(state.answers) : false;
-
- cta.addEventListener("click", () => {
-  // values already stored per-field
-  next();
-});
-
+  cta.addEventListener("click", next);
   screenEl.appendChild(cta);
 }
 
@@ -406,6 +389,359 @@ function renderTextarea(screen) {
   }
   ta.addEventListener("input", validateNow);
   validateNow();
+
+  cta.addEventListener("click", next);
+  screenEl.appendChild(cta);
+}
+
+/* =========================================================
+   DOB WHEEL (3-column scroll + snap)
+   Stores:
+   - state.answers.month (Month name)
+   - state.answers.day (1..31)
+   - state.answers.year (yyyy)
+   - state.answers.dob ("YYYY-MM-DD") for downstream
+   ========================================================= */
+function renderDobWheel(screen) {
+  const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
+
+  screenEl.appendChild(h2Title(title));
+  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+
+  const months = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ];
+  const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
+  const thisYear = new Date().getFullYear();
+  const years = Array.from({ length: 120 }, (_, i) => String(thisYear - i));
+
+  const wrap = document.createElement("div");
+  wrap.className = "dobWrap";
+
+  const wheelBox = document.createElement("div");
+  wheelBox.className = "dobWheelBox";
+
+  const cols = document.createElement("div");
+  cols.className = "dobCols";
+
+  const cta = document.createElement("button");
+  cta.className = "cta";
+  cta.textContent = "Continue";
+
+  function getItemHeight(scroller) {
+    const item = scroller.querySelector(".dobItem");
+    return item ? item.getBoundingClientRect().height : 44;
+  }
+
+  function setDobString() {
+    const m = state.answers.month;
+    const d = state.answers.day;
+    const y = state.answers.year;
+    if (!m || !d || !y) {
+      state.answers.dob = "";
+      return;
+    }
+    const mm = String(months.indexOf(m) + 1).padStart(2, "0");
+    const dd = String(d).padStart(2, "0");
+    state.answers.dob = `${y}-${mm}-${dd}`;
+  }
+
+  function setSelected(scroller, chosenEl) {
+    scroller.querySelectorAll(".dobItem").forEach(el => el.classList.remove("isSelected"));
+    chosenEl.classList.add("isSelected");
+
+    const key = scroller.getAttribute("data-key");
+    const val = chosenEl.getAttribute("data-value");
+    state.answers[key] = val;
+
+    setDobString();
+    cta.disabled = !state.answers.dob;
+  }
+
+  function scrollToValue(scroller, value, immediate = false) {
+    const item = scroller.querySelector(`.dobItem[data-value="${CSS.escape(value)}"]`);
+    if (!item) return;
+
+    const itemH = getItemHeight(scroller);
+    const padH = itemH * 2;
+    const items = Array.from(scroller.querySelectorAll(".dobItem"));
+    const idx = items.indexOf(item);
+
+    const top = padH + idx * itemH;
+    const target = top - itemH;
+
+    scroller.scrollTo({ top: target, behavior: immediate ? "auto" : "smooth" });
+    setSelected(scroller, item);
+  }
+
+  function snapToNearest(scroller) {
+    const itemH = getItemHeight(scroller);
+    const padH = itemH * 2;
+
+    const raw = scroller.scrollTop + itemH;
+    const idx = Math.round((raw - padH) / itemH);
+
+    const items = Array.from(scroller.querySelectorAll(".dobItem"));
+    const clamped = Math.max(0, Math.min(items.length - 1, idx));
+    const chosen = items[clamped];
+    if (!chosen) return;
+
+    scrollToValue(scroller, chosen.getAttribute("data-value"), false);
+  }
+
+  function makeWheel({ label, key, items }) {
+    const col = document.createElement("div");
+    col.className = "dobCol";
+
+    const head = document.createElement("div");
+    head.className = "dobColLabel";
+    head.textContent = label;
+
+    const scroller = document.createElement("div");
+    scroller.className = "dobWheel";
+    scroller.setAttribute("data-key", key);
+
+    const topPad = document.createElement("div");
+    topPad.className = "dobPad";
+    const botPad = document.createElement("div");
+    botPad.className = "dobPad";
+
+    scroller.appendChild(topPad);
+
+    items.forEach((val) => {
+      const row = document.createElement("div");
+      row.className = "dobItem";
+      row.textContent = val;
+      row.setAttribute("data-value", val);
+      row.addEventListener("click", () => scrollToValue(scroller, val));
+      scroller.appendChild(row);
+    });
+
+    scroller.appendChild(botPad);
+
+    let t;
+    scroller.addEventListener("scroll", () => {
+      clearTimeout(t);
+      t = setTimeout(() => snapToNearest(scroller), 90);
+    });
+
+    // initialize selection
+    const existing = state.answers[key];
+    const defaultVal =
+      key === "month" ? months[new Date().getMonth()]
+      : key === "day" ? String(new Date().getDate())
+      : String(new Date().getFullYear());
+
+    requestAnimationFrame(() => {
+      scrollToValue(scroller, (existing && items.includes(existing)) ? existing : defaultVal, true);
+    });
+
+    col.appendChild(head);
+    col.appendChild(scroller);
+    return col;
+  }
+
+  cols.appendChild(makeWheel({ label: "Month", key: "month", items: months }));
+  cols.appendChild(makeWheel({ label: "Day", key: "day", items: days }));
+  cols.appendChild(makeWheel({ label: "Year", key: "year", items: years }));
+
+  wheelBox.appendChild(cols);
+
+  const lines = document.createElement("div");
+  lines.className = "dobLines";
+  wheelBox.appendChild(lines);
+
+  wrap.appendChild(wheelBox);
+  screenEl.appendChild(wrap);
+
+  setDobString();
+  cta.disabled = !state.answers.dob;
+  cta.addEventListener("click", next);
+  screenEl.appendChild(cta);
+}
+/* =========================================================
+   TOB WHEEL (Hour + Minute + AM/PM scroll + snap)
+   Stores:
+   - state.answers.tobHour ("1".."12")
+   - state.answers.tobMinute ("00".."59")
+   - state.answers.tobMeridiem ("AM"|"PM")
+   - state.answers.birthTime ("HH:MM AM/PM" OR "Unknown")
+   ========================================================= */
+function renderTobWheel(screen) {
+  const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
+
+  screenEl.appendChild(h2Title(title));
+  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+
+  const hours = Array.from({ length: 12 }, (_, i) => String(i + 1));              // 1..12
+  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));// 00..59
+  const meridiems = ["AM", "PM"];
+
+  const wrap = document.createElement("div");
+  wrap.className = "dobWrap"; // reuse same layout container
+
+  const wheelBox = document.createElement("div");
+  wheelBox.className = "dobWheelBox";
+
+  const cols = document.createElement("div");
+  cols.className = "dobCols";
+
+  const cta = document.createElement("button");
+  cta.className = "cta";
+  cta.textContent = "Continue";
+
+  const remember = document.createElement("button");
+  remember.type = "button";
+  remember.className = "tobRemember";
+  remember.textContent = screen.rememberLinkText || "I don’t remember";
+
+  function getItemHeight(scroller) {
+    const item = scroller.querySelector(".dobItem");
+    return item ? item.getBoundingClientRect().height : 44;
+  }
+
+  function setBirthTimeString() {
+    // If user clicked "I don't remember"
+    if (state.answers.birthTime === "Unknown") return;
+
+    const h = state.answers.tobHour;
+    const m = state.answers.tobMinute;
+    const ap = state.answers.tobMeridiem;
+
+    if (!h || !m || !ap) {
+      state.answers.birthTime = "";
+      return;
+    }
+    state.answers.birthTime = `${h}:${m} ${ap}`;
+  }
+
+  function setSelected(scroller, chosenEl) {
+    scroller.querySelectorAll(".dobItem").forEach(el => el.classList.remove("isSelected"));
+    chosenEl.classList.add("isSelected");
+
+    const key = scroller.getAttribute("data-key");
+    const val = chosenEl.getAttribute("data-value");
+    state.answers[key] = val;
+
+    // If they were previously "Unknown", switching wheel should clear that
+    if (state.answers.birthTime === "Unknown") state.answers.birthTime = "";
+
+    setBirthTimeString();
+    cta.disabled = !state.answers.birthTime;
+  }
+
+  function scrollToValue(scroller, value, immediate = false) {
+    const item = scroller.querySelector(`.dobItem[data-value="${CSS.escape(value)}"]`);
+    if (!item) return;
+
+    const itemH = getItemHeight(scroller);
+    const padH = itemH * 2;
+    const items = Array.from(scroller.querySelectorAll(".dobItem"));
+    const idx = items.indexOf(item);
+
+    const top = padH + idx * itemH;
+    const target = top - itemH;
+
+    scroller.scrollTo({ top: target, behavior: immediate ? "auto" : "smooth" });
+    setSelected(scroller, item);
+  }
+
+  function snapToNearest(scroller) {
+    const itemH = getItemHeight(scroller);
+    const padH = itemH * 2;
+
+    const raw = scroller.scrollTop + itemH;
+    const idx = Math.round((raw - padH) / itemH);
+
+    const items = Array.from(scroller.querySelectorAll(".dobItem"));
+    const clamped = Math.max(0, Math.min(items.length - 1, idx));
+    const chosen = items[clamped];
+    if (!chosen) return;
+
+    scrollToValue(scroller, chosen.getAttribute("data-value"), false);
+  }
+
+  function makeWheel({ label, key, items, defaultVal }) {
+    const col = document.createElement("div");
+    col.className = "dobCol";
+
+    const head = document.createElement("div");
+    head.className = "dobColLabel";
+    head.textContent = label;
+
+    const scroller = document.createElement("div");
+    scroller.className = "dobWheel";
+    scroller.setAttribute("data-key", key);
+
+    const topPad = document.createElement("div");
+    topPad.className = "dobPad";
+    const botPad = document.createElement("div");
+    botPad.className = "dobPad";
+
+    scroller.appendChild(topPad);
+
+    items.forEach((val) => {
+      const row = document.createElement("div");
+      row.className = "dobItem";
+      row.textContent = val;
+      row.setAttribute("data-value", val);
+      row.addEventListener("click", () => scrollToValue(scroller, val));
+      scroller.appendChild(row);
+    });
+
+    scroller.appendChild(botPad);
+
+    let t;
+    scroller.addEventListener("scroll", () => {
+      clearTimeout(t);
+      t = setTimeout(() => snapToNearest(scroller), 90);
+    });
+
+    // initialize selection
+    const existing = state.answers[key];
+    const initVal = (existing && items.includes(existing)) ? existing : defaultVal;
+
+    requestAnimationFrame(() => scrollToValue(scroller, initVal, true));
+
+    col.appendChild(head);
+    col.appendChild(scroller);
+    return col;
+  }
+
+  // Defaults (feel free to change)
+  const now = new Date();
+  let h = now.getHours();                  // 0..23
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12; if (h === 0) h = 12;         // 1..12
+  const mm = String(now.getMinutes()).padStart(2, "0");
+
+  cols.appendChild(makeWheel({ label: "", key: "tobHour", items: hours, defaultVal: String(h) }));
+  cols.appendChild(makeWheel({ label: "", key: "tobMinute", items: minutes, defaultVal: mm }));
+  cols.appendChild(makeWheel({ label: "", key: "tobMeridiem", items: meridiems, defaultVal: ap }));
+
+  wheelBox.appendChild(cols);
+
+  const lines = document.createElement("div");
+  lines.className = "dobLines";
+  wheelBox.appendChild(lines);
+
+  wrap.appendChild(wheelBox);
+  screenEl.appendChild(wrap);
+
+  // "I don't remember" link (sets Unknown + enables Continue)
+  remember.addEventListener("click", () => {
+    state.answers.birthTime = "Unknown";
+    cta.disabled = false;
+    // Optional: visually de-emphasize selection
+    screenEl.querySelectorAll(".dobItem").forEach(el => el.classList.remove("isSelected"));
+  });
+
+  screenEl.appendChild(remember);
+
+  // initialize computed time
+  setBirthTimeString();
+  cta.disabled = !state.answers.birthTime;
 
   cta.addEventListener("click", next);
   screenEl.appendChild(cta);
@@ -463,12 +799,8 @@ function renderInterstitialCalc(screen) {
   wrap.appendChild(list);
   screenEl.appendChild(wrap);
 
-  // animate reveal + completion
   rowEls.forEach((obj, i) => {
-    setTimeout(() => {
-      obj.row.classList.add("show");
-      obj.status.textContent = "Calculating";
-    }, i * 380);
+    setTimeout(() => obj.row.classList.add("show"), i * 380);
   });
 
   rowEls.forEach((obj, i) => {
@@ -478,12 +810,7 @@ function renderInterstitialCalc(screen) {
     }, 900 + i * 520);
   });
 
-  const auto = screen.autoAdvanceMs || 3200;
-  setTimeout(() => {
-    next();
-  }, auto);
-
-  // no CTA on this one
+  setTimeout(next, screen.autoAdvanceMs || 3200);
 }
 
 /* =========================================================
@@ -611,7 +938,6 @@ function renderInterstitialBubble(screen) {
 
   screenEl.appendChild(bubbleWrap);
 
-  // speech
   const speech = document.createElement("div");
   speech.className = "speech";
   const speechBubble = document.createElement("div");
@@ -623,14 +949,12 @@ function renderInterstitialBubble(screen) {
   speech.appendChild(dot);
   screenEl.appendChild(speech);
 
-  // CTA
   const cta = document.createElement("button");
   cta.className = "cta";
   cta.textContent = "Continue";
   cta.addEventListener("click", next);
   screenEl.appendChild(cta);
 
-  // start animations
   buildStars(stars);
   buildLiquidSparkles(sparkWrap);
   animateFill(percent, liquid, TARGET_PERCENT, FILL_DURATION_MS);
@@ -643,6 +967,15 @@ function getWinningArchetype() {
   const entries = Object.entries(state.score);
   entries.sort((a,b) => b[1]-a[1]);
   return { archetype: entries[0][0], score: entries[0][1], sorted: entries };
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
 
 function renderResults(screen) {
@@ -667,22 +1000,20 @@ function renderResults(screen) {
   const body = document.createElement("div");
   body.className = "auditBody";
 
-  // show stored non-scoring answers too
   const meta = document.createElement("div");
   meta.className = "auditRow";
   meta.innerHTML = `
     <div class="auditQ">Captured inputs</div>
     <div class="auditA">
-      <div><strong>Name:</strong> ${state.answers.firstName || ""}</div>
-      <div><strong>Gender:</strong> ${state.answers.gender || ""}</div>
-      <div><strong>DOB:</strong> ${state.answers.dob || ""}</div>
-      <div><strong>Birth Time:</strong> ${state.answers.birthTime || ""}</div>
-      <div><strong>Birthplace:</strong> ${state.answers.birthPlace || ""}</div>
+      <div><strong>Name:</strong> ${escapeHtml(state.answers.firstName || "")}</div>
+      <div><strong>Gender:</strong> ${escapeHtml(state.answers.gender || "")}</div>
+      <div><strong>DOB:</strong> ${escapeHtml(state.answers.dob || "")}</div>
+      <div><strong>Birth Time:</strong> ${escapeHtml(state.answers.birthTime || "")}</div>
+      <div><strong>Birthplace:</strong> ${escapeHtml(state.answers.birthPlace || "")}</div>
     </div>
   `;
   body.appendChild(meta);
 
-  // scoring trail
   state.auditTrail.forEach(item => {
     const row = document.createElement("div");
     row.className = "auditRow";
@@ -705,12 +1036,11 @@ function renderResults(screen) {
     body.appendChild(row);
   });
 
-  // text questions
   const open1 = document.createElement("div");
   open1.className = "auditRow";
   open1.innerHTML = `
     <div class="auditQ">Open response</div>
-    <div class="auditA"><strong>Q:</strong> ${screens.find(x=>x.id==="moneyQuestion1")?.title || ""}<br>
+    <div class="auditA"><strong>Q:</strong> ${escapeHtml(screens.find(x=>x.id==="moneyQuestion1")?.title || "")}<br>
       <strong>A:</strong> ${escapeHtml(state.answers.moneyQuestion1 || "")}
     </div>
   `;
@@ -720,7 +1050,7 @@ function renderResults(screen) {
   open2.className = "auditRow";
   open2.innerHTML = `
     <div class="auditQ">Open response</div>
-    <div class="auditA"><strong>Q:</strong> ${screens.find(x=>x.id==="moneyQuestion2")?.title || ""}<br>
+    <div class="auditA"><strong>Q:</strong> ${escapeHtml(screens.find(x=>x.id==="moneyQuestion2")?.title || "")}<br>
       <strong>A:</strong> ${escapeHtml(state.answers.moneyQuestion2 || "")}
     </div>
   `;
@@ -743,15 +1073,6 @@ function renderResults(screen) {
   screenEl.appendChild(restart);
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
 /* =========================================================
    MAIN RENDER SWITCH
    ========================================================= */
@@ -771,9 +1092,15 @@ function render() {
     case "textarea":
       renderTextarea(scr);
       break;
+    case "dobWheel":
+      renderDobWheel(scr);
+      break;
     case "interstitialCalc":
       renderInterstitialCalc(scr);
       break;
+    case "tobWheel":
+  renderTobWheel(scr);
+  break;
     case "interstitialBubble":
       renderInterstitialBubble(scr);
       break;
@@ -786,9 +1113,7 @@ function render() {
 }
 
 /* =========================================================
-   EVENTS
+   EVENTS + INIT
    ========================================================= */
-backBtn.addEventListener("click", back);
-
-/* init */
+if (backBtn) backBtn.addEventListener("click", back);
 render();
