@@ -1,30 +1,29 @@
 /* =========================================================
-   FULL SURVEY FLOW (clean rebuild)
+   FULL SURVEY FLOW (clean rebuild) — MASTER (CORRECT)
    - screens config drives everything
-   - answers stored in state.answers (by field keys + screen ids where relevant)
+   - answers stored in state.answers
    - scoring stored in state.score + state.auditTrail
+   - BEFORE results page: collects Email + Phone, then submits to FormSpark
+     FormSpark ID: 2kIN1hL95
    ========================================================= */
+
+/* ------- FormSpark ------- */
+const FORMSPARK_ENDPOINT = "https://submit-form.com/2kIN1hL95";
 
 /* ------- Interstitial #2 config ------- */
 const TARGET_PERCENT = 78;
 const FILL_DURATION_MS = 2400;
-const STAR_COUNT = 40;
-const SPARKLE_COUNT = 18;
+const STAR_COUNT = 90;
 
 /* ------- Global state ------- */
 const state = {
   idx: 0,
-  answers: {},        // stores values by key (e.g., firstName, dob, month/day/year, etc.)
-  score: {            // archetype totals
-    STABILITY: 0,
-    EXPANSION: 0,
-    LUXURY: 0,
-    RESET: 0
-  },
-  auditTrail: []      // [{qid, question, answerLabel, scoreDelta:{...}}]
+  answers: {},
+  score: { STABILITY: 0, EXPANSION: 0, LUXURY: 0, RESET: 0 },
+  auditTrail: []
 };
 
-/* ------- Elements ------- */
+/* ------- Elements (single source of truth) ------- */
 const screenEl = document.getElementById("screen");
 const stepLabel = document.getElementById("stepLabel");
 const progressFill = document.getElementById("progressFill");
@@ -46,7 +45,6 @@ const screens = [
     ],
     nextOnSelect: true
   },
-
   {
     id: "firstName",
     type: "input",
@@ -55,23 +53,19 @@ const screens = [
     fields: [{ key: "firstName", label: "First name", placeholder: "Type your first name..." }],
     validate: (vals) => !!vals.firstName?.trim()
   },
-
-  /* DOB WHEEL (not free text) */
   {
     id: "dob",
     type: "dobWheel",
     title: (s) => `Nice to meet you, ${s.answers.firstName || "love"}. When were you born?`,
     subtitle: "Scroll month, day, and year."
   },
-
   {
-  id: "birthTime",
-  type: "tobWheel",
-  title: "Do you know your birth time?",
-  subtitle: "This helps us find out where planets were placed in the sky at the moment of your birth",
-  rememberLinkText: "I don’t remember"
-},
-
+    id: "birthTime",
+    type: "tobWheel",
+    title: "Do you know your birth time?",
+    subtitle: "This helps us find out where planets were placed in the sky at the moment of your birth",
+    rememberLinkText: "I don’t remember"
+  },
   {
     id: "birthPlace",
     type: "input",
@@ -94,10 +88,11 @@ const screens = [
       { icon: "🧿", text: "Reading the energetic birth imprint" },
       { icon: "🔮", text: "Generating the next questions based on your money blueprint" }
     ],
-    autoAdvanceMs: 3600
+    finishMessage: "Your cosmic details have been collected. Let’s personalize your report.",
+    ctaText: "Continue"
   },
 
-  /* -------- Archetype questions (examples) -------- */
+  /* -------- Archetype questions -------- */
   {
     id: "incomeNow",
     type: "choice",
@@ -113,7 +108,6 @@ const screens = [
     ],
     nextOnSelect: true
   },
-
   {
     id: "moneyEmotion",
     type: "choice",
@@ -128,7 +122,6 @@ const screens = [
     ],
     nextOnSelect: true
   },
-
   {
     id: "manifestation",
     type: "choice",
@@ -142,7 +135,6 @@ const screens = [
     ],
     nextOnSelect: true
   },
-
   {
     id: "commitment",
     type: "choice",
@@ -162,12 +154,12 @@ const screens = [
     id: "interstitial2",
     type: "interstitialBubble",
     title: "Forecast accuracy",
-    subtitle: "Calculating your cosmic energy and personalized blueprint...",
-    speech: "Share a bit more to reveal what’s driving you to get a more accurate reading!",
+    subtitle: "Calculating the accuracy of your personalized blueprint...",
+    speech: "Drop the Share a bit more to reveal what’s driving you to get a more accurate reading!",
+    ctaText: "Continue",
     autoAdvance: false
   },
 
-  /* -------- Open responses -------- */
   {
     id: "moneyQuestion1",
     type: "textarea",
@@ -185,6 +177,16 @@ const screens = [
     validate: (vals) => !!vals.moneyQuestion2?.trim()
   },
 
+  /* -------- EMAIL + PHONE (SUBMIT TO FORMSPARK BEFORE RESULTS) -------- */
+  {
+    id: "contact",
+    type: "contact",
+    title: (s) => `Perfect, ${s.answers.firstName || "love"}… where should we send your results?`,
+    subtitle: "Enter your email + phone so we can deliver your personalized money blueprint.",
+    ctaText: "Send my results",
+    validate: (vals) => isValidEmail(vals.email) && isValidPhone(vals.phone)
+  },
+
   /* -------- Results -------- */
   {
     id: "results",
@@ -195,11 +197,9 @@ const screens = [
 ];
 
 /* =========================================================
-   RENDERING HELPERS
+   HEADER / FLOW HELPERS
    ========================================================= */
-function totalSteps() {
-  return screens.length;
-}
+function totalSteps() { return screens.length; }
 
 function setHeaderProgress() {
   const stepText = `${state.idx + 1}/${totalSteps()}`;
@@ -211,9 +211,7 @@ function setHeaderProgress() {
   if (backBtn) backBtn.style.visibility = state.idx === 0 ? "hidden" : "visible";
 }
 
-function clearScreen() {
-  if (screenEl) screenEl.innerHTML = "";
-}
+function clearScreen() { if (screenEl) screenEl.innerHTML = ""; }
 
 function h2Title(text) {
   const h = document.createElement("h2");
@@ -229,19 +227,8 @@ function pSub(text) {
   return p;
 }
 
-function next() {
-  if (state.idx < screens.length - 1) {
-    state.idx++;
-    render();
-  }
-}
-
-function back() {
-  if (state.idx > 0) {
-    state.idx--;
-    render();
-  }
-}
+function next() { if (state.idx < screens.length - 1) { state.idx++; render(); } }
+function back() { if (state.idx > 0) { state.idx--; render(); } }
 
 /* ----- scoring helper ----- */
 function applyScore(screen, option) {
@@ -257,6 +244,135 @@ function applyScore(screen, option) {
     answerLabel: option.label,
     scoreDelta: option.score
   });
+}
+
+/* =========================================================
+   VALIDATION + NORMALIZERS
+   ========================================================= */
+function isValidEmail(email) {
+  const e = String(email || "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+}
+
+function normalizePhone(phone) {
+  let p = String(phone || "").trim();
+  const hasPlus = p.startsWith("+");
+  p = p.replace(/[^\d]/g, "");
+  if (hasPlus) p = "+" + p;
+  return p;
+}
+
+function isValidPhone(phone) {
+  const p = normalizePhone(phone);
+  const digits = p.replace(/[^\d]/g, "");
+  return digits.length >= 10;
+}
+
+/* =========================================================
+   BUILD FLAT FORMSPARK PAYLOAD
+   ========================================================= */
+function getWinningArchetype() {
+  const entries = Object.entries(state.score);
+  entries.sort((a, b) => b[1] - a[1]);
+  return { archetype: entries[0][0], score: entries[0][1], sorted: entries };
+}
+
+function getQuestionScreensInOrder() {
+  return screens.filter(s =>
+    ["choice", "input", "textarea", "dobWheel", "tobWheel", "contact"].includes(s.type)
+  );
+}
+
+function getScreenQuestionText(scr) {
+  const t = typeof scr.title === "function" ? scr.title(state) : scr.title;
+  return String(t || scr.id);
+}
+
+function getScreenAnswerValue(scr) {
+  if (scr.type === "input") {
+    const f = (scr.fields || [])[0];
+    if (!f) return "";
+    return String(state.answers[f.key] || "");
+  }
+
+  if (scr.type === "dobWheel") return String(state.answers.dob || "");
+  if (scr.type === "tobWheel") return String(state.answers.birthTime || "");
+
+  if (scr.type === "contact") {
+    return `email: ${(state.answers.email || "").trim()} | phone: ${normalizePhone(state.answers.phone || "")}`;
+  }
+
+  return String(state.answers[scr.id] || "");
+}
+
+function buildFormSparkPayloadFlat() {
+  const win = getWinningArchetype();
+  const qs = getQuestionScreensInOrder();
+
+  const payload = {};
+  payload.submittedAt = new Date().toISOString();
+  payload.Email = (state.answers.email || "").trim();
+  payload.Phone = normalizePhone(state.answers.phone || "");
+
+  payload.topPattern = win.archetype;
+  payload.score_STABILITY = state.score.STABILITY ?? 0;
+  payload.score_EXPANSION = state.score.EXPANSION ?? 0;
+  payload.score_LUXURY = state.score.LUXURY ?? 0;
+  payload.score_RESET = state.score.RESET ?? 0;
+
+  qs.forEach((scr, i) => {
+    const n = i + 1;
+    payload[`Q${n}`] = getScreenAnswerValue(scr);
+    payload[`Q${n}_question`] = getScreenQuestionText(scr);
+  });
+
+  payload.scoreTotals =
+    `STABILITY ${payload.score_STABILITY} • EXPANSION ${payload.score_EXPANSION} • LUXURY ${payload.score_LUXURY} • RESET ${payload.score_RESET}`;
+
+  return payload;
+}
+
+async function submitToFormSpark() {
+  const payload = buildFormSparkPayloadFlat();
+
+  // 1) JSON POST
+  try {
+    const res = await fetch(FORMSPARK_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (res && res.ok) return true;
+  } catch (err) {
+    console.warn("FormSpark JSON POST failed. Falling back.", err);
+  }
+
+  // 2) no-cors urlencoded
+  try {
+    const params = new URLSearchParams();
+    Object.entries(payload).forEach(([k, v]) => params.append(k, String(v ?? "")));
+
+    await fetch(FORMSPARK_ENDPOINT, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body: params.toString()
+    });
+    return true;
+  } catch (err2) {
+    console.warn("FormSpark no-cors POST failed. Falling back to sendBeacon.", err2);
+  }
+
+  // 3) sendBeacon
+  try {
+    const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+    const ok = navigator.sendBeacon(FORMSPARK_ENDPOINT, blob);
+    if (ok) return true;
+  } catch (err3) {
+    console.warn("sendBeacon failed.", err3);
+  }
+
+  throw new Error("All submit methods failed.");
 }
 
 /* =========================================================
@@ -289,7 +405,6 @@ function renderChoice(screen) {
     btn.addEventListener("click", () => {
       state.answers[screen.id] = opt.value;
       applyScore(screen, opt);
-
       if (screen.nextOnSelect) next();
       else render();
     });
@@ -321,6 +436,7 @@ function renderInput(screen) {
   const cta = document.createElement("button");
   cta.className = "cta";
   cta.textContent = "Continue";
+  cta.type = "button";
 
   screen.fields.forEach(f => {
     const field = document.createElement("div");
@@ -336,7 +452,7 @@ function renderInput(screen) {
     input.value = state.answers[f.key] || "";
 
     input.addEventListener("input", () => {
-      state.answers[f.key] = input.value; // store by key
+      state.answers[f.key] = input.value;
       cta.disabled = screen.validate ? !screen.validate(state.answers) : false;
     });
 
@@ -353,7 +469,9 @@ function renderInput(screen) {
 }
 
 function renderTextarea(screen) {
-  screenEl.appendChild(h2Title(screen.title));
+  const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
+
+  screenEl.appendChild(h2Title(title));
   if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
 
   const wrap = document.createElement("div");
@@ -381,6 +499,7 @@ function renderTextarea(screen) {
 
   const cta = document.createElement("button");
   cta.className = "cta";
+  cta.type = "button";
   cta.textContent = "Continue";
 
   function validateNow() {
@@ -395,12 +514,7 @@ function renderTextarea(screen) {
 }
 
 /* =========================================================
-   DOB WHEEL (3-column scroll + snap)
-   Stores:
-   - state.answers.month (Month name)
-   - state.answers.day (1..31)
-   - state.answers.year (yyyy)
-   - state.answers.dob ("YYYY-MM-DD") for downstream
+   DOB WHEEL
    ========================================================= */
 function renderDobWheel(screen) {
   const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
@@ -408,10 +522,7 @@ function renderDobWheel(screen) {
   screenEl.appendChild(h2Title(title));
   if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
 
-  const months = [
-    "January","February","March","April","May","June",
-    "July","August","September","October","November","December"
-  ];
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const days = Array.from({ length: 31 }, (_, i) => String(i + 1));
   const thisYear = new Date().getFullYear();
   const years = Array.from({ length: 120 }, (_, i) => String(thisYear - i));
@@ -427,6 +538,7 @@ function renderDobWheel(screen) {
 
   const cta = document.createElement("button");
   cta.className = "cta";
+  cta.type = "button";
   cta.textContent = "Continue";
 
   function getItemHeight(scroller) {
@@ -438,10 +550,7 @@ function renderDobWheel(screen) {
     const m = state.answers.month;
     const d = state.answers.day;
     const y = state.answers.year;
-    if (!m || !d || !y) {
-      state.answers.dob = "";
-      return;
-    }
+    if (!m || !d || !y) { state.answers.dob = ""; return; }
     const mm = String(months.indexOf(m) + 1).padStart(2, "0");
     const dd = String(d).padStart(2, "0");
     state.answers.dob = `${y}-${mm}-${dd}`;
@@ -526,7 +635,6 @@ function renderDobWheel(screen) {
       t = setTimeout(() => snapToNearest(scroller), 90);
     });
 
-    // initialize selection
     const existing = state.answers[key];
     const defaultVal =
       key === "month" ? months[new Date().getMonth()]
@@ -560,13 +668,9 @@ function renderDobWheel(screen) {
   cta.addEventListener("click", next);
   screenEl.appendChild(cta);
 }
+
 /* =========================================================
-   TOB WHEEL (Hour + Minute + AM/PM scroll + snap)
-   Stores:
-   - state.answers.tobHour ("1".."12")
-   - state.answers.tobMinute ("00".."59")
-   - state.answers.tobMeridiem ("AM"|"PM")
-   - state.answers.birthTime ("HH:MM AM/PM" OR "Unknown")
+   TOB WHEEL
    ========================================================= */
 function renderTobWheel(screen) {
   const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
@@ -574,12 +678,12 @@ function renderTobWheel(screen) {
   screenEl.appendChild(h2Title(title));
   if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
 
-  const hours = Array.from({ length: 12 }, (_, i) => String(i + 1));               // 1..12
-  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));// 00..59
+  const hours = Array.from({ length: 12 }, (_, i) => String(i + 1));
+  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
   const meridiems = ["AM", "PM"];
 
   const wrap = document.createElement("div");
-  wrap.className = "dobWrap"; // reuse same layout container
+  wrap.className = "dobWrap";
 
   const wheelBox = document.createElement("div");
   wheelBox.className = "dobWheelBox";
@@ -590,7 +694,7 @@ function renderTobWheel(screen) {
   const cta = document.createElement("button");
   cta.className = "cta";
   cta.textContent = "Continue";
-  cta.type = "button"; // IMPORTANT
+  cta.type = "button";
 
   const remember = document.createElement("button");
   remember.type = "button";
@@ -603,17 +707,13 @@ function renderTobWheel(screen) {
   }
 
   function setBirthTimeString() {
-    // If user clicked "I don't remember"
     if (state.answers.birthTime === "Unknown") return;
 
     const h = state.answers.tobHour;
     const m = state.answers.tobMinute;
     const ap = state.answers.tobMeridiem;
 
-    if (!h || !m || !ap) {
-      state.answers.birthTime = "";
-      return;
-    }
+    if (!h || !m || !ap) { state.answers.birthTime = ""; return; }
     state.answers.birthTime = `${h}:${m} ${ap}`;
   }
 
@@ -625,7 +725,6 @@ function renderTobWheel(screen) {
     const val = chosenEl.getAttribute("data-value");
     state.answers[key] = val;
 
-    // If they were previously "Unknown", switching wheel should clear that
     if (state.answers.birthTime === "Unknown") state.answers.birthTime = "";
 
     setBirthTimeString();
@@ -664,13 +763,9 @@ function renderTobWheel(screen) {
     scrollToValue(scroller, chosen.getAttribute("data-value"), false);
   }
 
-  function makeWheel({ label, key, items, defaultVal }) {
+  function makeWheel({ key, items, defaultVal }) {
     const col = document.createElement("div");
     col.className = "dobCol";
-
-    const head = document.createElement("div");
-    head.className = "dobColLabel";
-    head.textContent = label;
 
     const scroller = document.createElement("div");
     scroller.className = "dobWheel";
@@ -700,27 +795,24 @@ function renderTobWheel(screen) {
       t = setTimeout(() => snapToNearest(scroller), 90);
     });
 
-    // initialize selection
     const existing = state.answers[key];
     const initVal = (existing && items.includes(existing)) ? existing : defaultVal;
 
     requestAnimationFrame(() => scrollToValue(scroller, initVal, true));
 
-    col.appendChild(head);
     col.appendChild(scroller);
     return col;
   }
 
-  // Defaults (feel free to change)
   const now = new Date();
-  let hh = now.getHours();                 // 0..23
+  let hh = now.getHours();
   const ap = hh >= 12 ? "PM" : "AM";
-  hh = hh % 12; if (hh === 0) hh = 12;     // 1..12
+  hh = hh % 12; if (hh === 0) hh = 12;
   const mm = String(now.getMinutes()).padStart(2, "0");
 
-  cols.appendChild(makeWheel({ label: "", key: "tobHour", items: hours, defaultVal: String(hh) }));
-  cols.appendChild(makeWheel({ label: "", key: "tobMinute", items: minutes, defaultVal: mm }));
-  cols.appendChild(makeWheel({ label: "", key: "tobMeridiem", items: meridiems, defaultVal: ap }));
+  cols.appendChild(makeWheel({ key: "tobHour", items: hours, defaultVal: String(hh) }));
+  cols.appendChild(makeWheel({ key: "tobMinute", items: minutes, defaultVal: mm }));
+  cols.appendChild(makeWheel({ key: "tobMeridiem", items: meridiems, defaultVal: ap }));
 
   wheelBox.appendChild(cols);
 
@@ -731,29 +823,23 @@ function renderTobWheel(screen) {
   wrap.appendChild(wheelBox);
   screenEl.appendChild(wrap);
 
-  // "I don't remember" link (sets Unknown + enables Continue)
-  remember.addEventListener("click", () => {
-    state.answers.birthTime = "Unknown";
-    cta.disabled = false;
-
-    // Optional: visually de-emphasize selection (ONLY within this screen)
-    wrap.querySelectorAll(".dobItem").forEach(el => el.classList.remove("isSelected"));
-  });
-
-  // Actions wrapper so link ALWAYS sits between box + button (desktop + mobile)
   const actions = document.createElement("div");
   actions.className = "tobActions";
   actions.appendChild(remember);
   actions.appendChild(cta);
   screenEl.appendChild(actions);
 
-  // Ensure computed time is set AFTER initial wheel selection paints
+  remember.addEventListener("click", () => {
+    state.answers.birthTime = "Unknown";
+    cta.disabled = false;
+    wrap.querySelectorAll(".dobItem").forEach(el => el.classList.remove("isSelected"));
+  });
+
   requestAnimationFrame(() => {
     setBirthTimeString();
     cta.disabled = !state.answers.birthTime;
   });
 
-  // Continue
   cta.addEventListener("click", (e) => {
     e.preventDefault();
     if (cta.disabled) return;
@@ -761,12 +847,198 @@ function renderTobWheel(screen) {
   });
 }
 
-
 /* =========================================================
-   Interstitial #1: animated calculating rows
+   Interstitial #1 (Collecting Your Charts...)
    ========================================================= */
+function buildCalcOrbSparkles(orbEl, count = 26) {
+  const wrap = document.createElement("div");
+  wrap.className = "orbSparkles";
+  orbEl.appendChild(wrap);
+
+  for (let i = 0; i < count; i++) {
+    const sp = document.createElement("span");
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 18 + Math.random() * 44;
+    const x = 50 + Math.cos(angle) * radius;
+    const y = 50 + Math.sin(angle) * radius;
+    const size = Math.random() < 0.25 ? 3 : 2;
+    const op = 0.18 + Math.random() * 0.6;
+
+    sp.style.setProperty("--x", x + "%");
+    sp.style.setProperty("--y", y + "%");
+    sp.style.setProperty("--sz", size + "px");
+    sp.style.setProperty("--op", op.toFixed(2));
+    sp.style.setProperty("--tw", (1600 + Math.random() * 2400) + "ms");
+    sp.style.setProperty("--dr", (4200 + Math.random() * 3800) + "ms");
+    sp.style.setProperty("--dl", (Math.random() * 1800) + "ms");
+    sp.style.setProperty("--dx", (-8 + Math.random() * 16) + "px");
+    sp.style.setProperty("--dy", (-10 + Math.random() * 20) + "px");
+    wrap.appendChild(sp);
+  }
+}
+
+function initOrbConstellationPersistent(orbEl, icons = ["✨"]) {
+  const canvas = document.createElement("canvas");
+  canvas.className = "orbCanvas";
+  const ctx = canvas.getContext("2d");
+  orbEl.appendChild(canvas);
+
+  const nodesWrap = document.createElement("div");
+  nodesWrap.className = "orbNodes";
+  orbEl.appendChild(nodesWrap);
+
+  let rafId = null;
+  let stopped = false;
+
+  const COUNT = Math.max(7, Math.min(12, icons.length || 9));
+  const REVEAL_WINDOW_MS = 1400;
+  const MIN_DELAY_MS = 80;
+
+  const nodes = [];
+  const rand = (min, max) => min + Math.random() * (max - min);
+
+  function resize() {
+    const r = orbEl.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(r.width * dpr);
+    canvas.height = Math.floor(r.height * dpr);
+    canvas.style.width = `${r.width}px`;
+    canvas.style.height = `${r.height}px`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function makeNodes() {
+    nodesWrap.innerHTML = "";
+    nodes.length = 0;
+
+    const rect = orbEl.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    const cx = w / 2;
+    const cy = h / 2;
+    const baseR = Math.min(w, h) * 0.30;
+
+    const delays = Array.from({ length: COUNT }, () => rand(MIN_DELAY_MS, REVEAL_WINDOW_MS))
+      .sort((a, b) => a - b);
+
+    for (let i = 0; i < COUNT; i++) {
+      const angle = (Math.PI * 2 * i) / COUNT + rand(-0.18, 0.18);
+      const radius = baseR + rand(-12, 14);
+
+      const x = cx + Math.cos(angle) * radius;
+      const y = cy + Math.sin(angle) * radius;
+
+      const el = document.createElement("div");
+      el.className = "orbNode";
+      el.textContent = icons[i % icons.length] || "✨";
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.style.setProperty("--a", "0");
+      el.style.setProperty("--s", "0.7");
+
+      nodesWrap.appendChild(el);
+      nodes.push({ el, x, y, alpha: 0, revealAt: delays[i] });
+    }
+  }
+
+  let start = null;
+
+  function draw(ts) {
+    if (stopped) return;
+    if (start == null) start = ts;
+    const t = ts - start;
+
+    const rect = orbEl.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+
+    ctx.clearRect(0, 0, w, h);
+
+    for (const n of nodes) {
+      const age = t - n.revealAt;
+
+      if (age <= 0) {
+        n.alpha = 0;
+        n.el.style.setProperty("--a", "0");
+        continue;
+      }
+
+      const a = Math.min(1, age / 420);
+      n.alpha = a;
+
+      const popPhase = Math.max(0, 1 - age / 520);
+      const pop = 1 + popPhase * 0.28;
+
+      n.el.style.setProperty("--a", a.toFixed(3));
+      n.el.style.setProperty("--s", pop.toFixed(3));
+    }
+
+    const maxDist = Math.min(w, h) * 0.42;
+    ctx.lineWidth = 1;
+
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i];
+      if (a.alpha <= 0.05) continue;
+
+      const dists = [];
+      for (let j = 0; j < nodes.length; j++) {
+        if (i === j) continue;
+        const b = nodes[j];
+        if (b.alpha <= 0.05) continue;
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        dists.push({ j, d });
+      }
+
+      dists.sort((p, q) => p.d - q.d);
+      const neighbors = dists.slice(0, 2);
+
+      for (const nb of neighbors) {
+        const b = nodes[nb.j];
+        const d = nb.d;
+        if (d > maxDist) continue;
+
+        const strength = (1 - d / maxDist) * Math.min(a.alpha, b.alpha);
+        if (strength <= 0.02) continue;
+
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = `rgba(0,0,0,${0.55 * strength})`;
+        ctx.stroke();
+      }
+    }
+
+    rafId = requestAnimationFrame(draw);
+  }
+
+  resize();
+  makeNodes();
+
+  const onResize = () => {
+    if (stopped) return;
+    resize();
+    makeNodes();
+    start = null;
+  };
+  window.addEventListener("resize", onResize);
+
+  rafId = requestAnimationFrame(draw);
+
+  return function stop() {
+    stopped = true;
+    if (rafId) cancelAnimationFrame(rafId);
+    window.removeEventListener("resize", onResize);
+    canvas.remove();
+    nodesWrap.remove();
+  };
+}
+
 function renderInterstitialCalc(screen) {
-  screenEl.appendChild(h2Title(screen.title));
+  const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
+
+  screenEl.appendChild(h2Title(title));
   if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
 
   const wrap = document.createElement("div");
@@ -775,6 +1047,8 @@ function renderInterstitialCalc(screen) {
   const orb = document.createElement("div");
   orb.className = "calcOrb";
 
+  buildCalcOrbSparkles(orb, 26);
+
   const rings = document.createElement("div");
   rings.className = "radarRings";
   orb.appendChild(rings);
@@ -782,7 +1056,7 @@ function renderInterstitialCalc(screen) {
   const list = document.createElement("div");
   list.className = "calcList";
 
-  const rowEls = screen.rows.map((r) => {
+  const rowEls = (screen.rows || []).map((r) => {
     const row = document.createElement("div");
     row.className = "calcRow";
 
@@ -816,11 +1090,26 @@ function renderInterstitialCalc(screen) {
 
   wrap.appendChild(orb);
   wrap.appendChild(list);
+
+  const finishMsg = document.createElement("div");
+  finishMsg.className = "calcFinishMsg";
+  finishMsg.textContent =
+    screen.finishMessage || "Your cosmic details have been collected. Let’s personalize your report.";
+  wrap.appendChild(finishMsg);
+
+  const cta = document.createElement("button");
+  cta.className = "cta ctaGhost";
+  cta.type = "button";
+  cta.textContent = screen.ctaText || "Continue";
+  cta.addEventListener("click", next);
+  wrap.appendChild(cta);
+
   screenEl.appendChild(wrap);
 
-  rowEls.forEach((obj, i) => {
-    setTimeout(() => obj.row.classList.add("show"), i * 380);
-  });
+  const icons = (screen.rows || []).map(r => r.icon).filter(Boolean);
+  initOrbConstellationPersistent(orb, icons.length ? icons : ["✨"]);
+
+  rowEls.forEach((obj, i) => setTimeout(() => obj.row.classList.add("show"), i * 380));
 
   rowEls.forEach((obj, i) => {
     setTimeout(() => {
@@ -829,173 +1118,280 @@ function renderInterstitialCalc(screen) {
     }, 900 + i * 520);
   });
 
-  setTimeout(next, screen.autoAdvanceMs || 3200);
+  const lastCompleteAt = 900 + (rowEls.length - 1) * 520;
+  const showMsgAt = lastCompleteAt + 450;
+  const showBtnAt = showMsgAt + 650;
+
+  setTimeout(() => finishMsg.classList.add("show"), showMsgAt);
+  setTimeout(() => cta.classList.add("show"), showBtnAt);
 }
 
-
 /* =========================================================
-   Interstitial #2: bubble fill
+   Interstitial #2 (Forecast Accuracy) — MATCHES MASTER HTML
+   - Renders inside <section id="screen" class="screen">
+   - Uses .faStage/.faTitle/.faSubtitle/.faOrbWrap/.faStars/.faOrb/.faMist/.faFill/.faPercent
+   - Message + Continue appear ONLY after 78% fill completes
    ========================================================= */
-function buildStars(starsWrap) {
+function faBuildStars(starsWrap) {
   starsWrap.innerHTML = "";
   for (let i = 0; i < STAR_COUNT; i++) {
     const s = document.createElement("span");
     const x = Math.random() * 100;
     const y = Math.random() * 100;
-    const op = 0.30 + Math.random() * 0.60;
-    const tw = 1200 + Math.random() * 2400;
-    const dr = 3800 + Math.random() * 5200;
+    const op = 0.25 + Math.random() * 0.55;
+    const tw = 1200 + Math.random() * 2600;
+    const dr = 4200 + Math.random() * 5400;
+    const size = (Math.random() < 0.22) ? 3 : 2;
+
     s.style.left = x + "%";
-    s.style.top  = y + "%";
+    s.style.top = y + "%";
+    s.style.width = size + "px";
+    s.style.height = size + "px";
     s.style.setProperty("--op", op.toFixed(2));
     s.style.setProperty("--tw", tw.toFixed(0) + "ms");
     s.style.setProperty("--dr", dr.toFixed(0) + "ms");
-    const size = (Math.random() < 0.22) ? 3 : 2;
-    s.style.width = size + "px";
-    s.style.height = size + "px";
     starsWrap.appendChild(s);
   }
 }
 
-function buildLiquidSparkles(liquidSparklesEl) {
-  liquidSparklesEl.innerHTML = "";
-  for (let i = 0; i < SPARKLE_COUNT; i++) {
-    const sp = document.createElement("span");
-    const x = Math.random() * 100;
-    const delay = Math.random() * 2400;
-    const rise = 2200 + Math.random() * 2200;
-    const tw = 900 + Math.random() * 1600;
-    const op = 0.15 + Math.random() * 0.70;
-    const y = 70 + Math.random() * 40;
-
-    sp.style.left = x + "%";
-    sp.style.top  = y + "%";
-    sp.style.animationDelay = `${delay}ms, ${delay}ms`;
-    sp.style.setProperty("--rise", `${rise}ms`);
-    sp.style.setProperty("--tw", `${tw}ms`);
-    sp.style.setProperty("--op", op.toFixed(2));
-
-    const size = (Math.random() < 0.35) ? 2 : 3;
-    sp.style.width = size + "px";
-    sp.style.height = size + "px";
-
-    liquidSparklesEl.appendChild(sp);
-  }
-}
-
-function animateFill(percentText, liquid, toPercent, durationMs) {
+function faAnimateFill(percentEl, fillEl, to, durationMs, onDone) {
   const start = performance.now();
-  const from = 0;
-
-  function easeOutCubic(t) {
-    return 1 - Math.pow(1 - t, 3);
-  }
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
   function tick(now) {
-    const elapsed = now - start;
-    const t = Math.min(1, elapsed / durationMs);
+    const t = Math.min(1, (now - start) / durationMs);
     const eased = easeOutCubic(t);
+    const current = Math.round(to * eased);
 
-    const current = Math.round(from + (toPercent - from) * eased);
-
-    percentText.textContent = current + "%";
-    liquid.style.height = current + "%";
+    percentEl.textContent = current + "%";
+    fillEl.style.height = current + "%";
 
     if (t < 1) requestAnimationFrame(tick);
+    else if (typeof onDone === "function") onDone();
   }
 
   requestAnimationFrame(tick);
 }
 
-function renderInterstitialBubble(screen) {
-  screenEl.appendChild(h2Title(screen.title));
-  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+function renderForecastAccuracyOrb(mountEl, opts = {}) {
+  const percentTarget = opts.percent ?? TARGET_PERCENT;
+  const duration = opts.durationMs ?? FILL_DURATION_MS;
 
-  const bubbleWrap = document.createElement("div");
-  bubbleWrap.className = "bubbleWrap";
+  mountEl.innerHTML = "";
+
+  const wrap = document.createElement("div");
+  wrap.className = "faOrbWrap";
 
   const stars = document.createElement("div");
-  stars.className = "stars";
+  stars.className = "faStars";
 
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.setAttribute("aria-label", "Forecast accuracy bubble");
+  const orb = document.createElement("div");
+  orb.className = "faOrb";
 
-  const glass = document.createElement("div");
-  glass.className = "bubbleGlass";
+  const fill = document.createElement("div");
+  fill.className = "faFill";
+  fill.style.height = "0%";
 
-  const aurora = document.createElement("div");
-  aurora.className = "aurora oilslick";
+  const mist = document.createElement("div");
+  mist.className = "faMist";
 
-  const liquid = document.createElement("div");
-  liquid.className = "liquid";
-  liquid.style.height = "0%";
+  const pct = document.createElement("div");
+  pct.className = "faPercent";
+  pct.textContent = "0%";
 
-  const waveBack = document.createElement("div");
-  waveBack.className = "wave waveBack";
+  orb.appendChild(fill);
+  orb.appendChild(mist);
+  orb.appendChild(pct);
 
-  const waveFront = document.createElement("div");
-  waveFront.className = "wave waveFront";
+  wrap.appendChild(stars);
+  wrap.appendChild(orb);
+  mountEl.appendChild(wrap);
 
-  const sparkWrap = document.createElement("div");
-  sparkWrap.className = "liquidSparkles";
+  faBuildStars(stars);
 
-  const percent = document.createElement("div");
-  percent.className = "percent";
-  percent.textContent = "0%";
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      faAnimateFill(pct, fill, percentTarget, duration, resolve);
+    });
+  });
+}
 
-  liquid.appendChild(waveBack);
-  liquid.appendChild(waveFront);
-  liquid.appendChild(sparkWrap);
+function renderInterstitialBubble(screen) {
+  const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
 
-  bubble.appendChild(glass);
-  bubble.appendChild(aurora);
-  bubble.appendChild(liquid);
-  bubble.appendChild(percent);
+  const stage = document.createElement("div");
+  stage.className = "faStage";
 
-  bubbleWrap.appendChild(stars);
-  bubbleWrap.appendChild(bubble);
+  const h = document.createElement("h2");
+  h.className = "faTitle";
+  h.textContent = title;
 
-  screenEl.appendChild(bubbleWrap);
+  const p = document.createElement("p");
+  p.className = "faSubtitle";
+  p.textContent = screen.subtitle || "Calculating the accuracy of your personalized blueprint...";
 
-  const speech = document.createElement("div");
-  speech.className = "speech";
-  const speechBubble = document.createElement("div");
-  speechBubble.className = "speechBubble";
-  speechBubble.textContent = screen.speech || "One more step...";
-  const dot = document.createElement("div");
-  dot.className = "avatarDot";
-  speech.appendChild(speechBubble);
-  speech.appendChild(dot);
-  screenEl.appendChild(speech);
+  const mount = document.createElement("div");
+  mount.id = "forecastOrbMount";
+
+  const msg = document.createElement("div");
+  msg.className = "faAfterMsg";
+  msg.textContent =
+    screen.speech || "Drop the Share a bit more to reveal what’s driving you to get a more accurate reading!";
+
+  const cta = document.createElement("button");
+  cta.className = "cta faAfterCta";
+  cta.type = "button";
+  cta.textContent = screen.ctaText || "Continue";
+  cta.addEventListener("click", next);
+
+  stage.appendChild(h);
+  stage.appendChild(p);
+  stage.appendChild(mount);
+  stage.appendChild(msg);
+  stage.appendChild(cta);
+
+  screenEl.appendChild(stage);
+
+  // ensure hidden first (CSS uses opacity/transform/pointer-events)
+  msg.classList.remove("show");
+  cta.classList.remove("show");
+
+  renderForecastAccuracyOrb(mount, { percent: TARGET_PERCENT, durationMs: FILL_DURATION_MS })
+    .then(() => {
+      setTimeout(() => msg.classList.add("show"), 250);
+      setTimeout(() => cta.classList.add("show"), 700);
+    });
+}
+
+/* =========================================================
+   CONTACT SCREEN (Email + Phone) + SUBMIT TO FORMSPARK
+   ========================================================= */
+function renderContact(screen) {
+  const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
+
+  screenEl.appendChild(h2Title(title));
+  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+
+  const wrap = document.createElement("div");
+  wrap.className = "formWrap";
+
+  // Email
+  const emailField = document.createElement("div");
+  emailField.className = "field";
+
+  const emailLabel = document.createElement("div");
+  emailLabel.className = "label";
+  emailLabel.textContent = "Email";
+
+  const emailInput = document.createElement("input");
+  emailInput.className = "input";
+  emailInput.type = "email";
+  emailInput.inputMode = "email";
+  emailInput.autocomplete = "email";
+  emailInput.placeholder = "you@domain.com";
+  emailInput.value = state.answers.email || "";
+
+  const emailHint = document.createElement("div");
+  emailHint.className = "miniHint";
+  emailHint.textContent = "We’ll send your results here.";
+
+  emailField.appendChild(emailLabel);
+  emailField.appendChild(emailInput);
+  emailField.appendChild(emailHint);
+
+  // Phone
+  const phoneField = document.createElement("div");
+  phoneField.className = "field";
+
+  const phoneLabel = document.createElement("div");
+  phoneLabel.className = "label";
+  phoneLabel.textContent = "Phone number";
+
+  const phoneInput = document.createElement("input");
+  phoneInput.className = "input";
+  phoneInput.type = "tel";
+  phoneInput.inputMode = "tel";
+  phoneInput.autocomplete = "tel";
+  phoneInput.placeholder = "+1 306 555 5555";
+  phoneInput.value = state.answers.phone || "";
+
+  const phoneHint = document.createElement("div");
+  phoneHint.className = "miniHint";
+  phoneHint.textContent = "Used for delivery + important updates about your blueprint.";
+
+  phoneField.appendChild(phoneLabel);
+  phoneField.appendChild(phoneInput);
+  phoneField.appendChild(phoneHint);
+
+  wrap.appendChild(emailField);
+  wrap.appendChild(phoneField);
+  screenEl.appendChild(wrap);
+
+  const error = document.createElement("div");
+  error.className = "formError";
+  error.textContent = "";
+  screenEl.appendChild(error);
 
   const cta = document.createElement("button");
   cta.className = "cta";
-  cta.textContent = "Continue";
-  cta.addEventListener("click", next);
+  cta.type = "button";
+  cta.textContent = screen.ctaText || "Send my results";
+
   screenEl.appendChild(cta);
 
-  buildStars(stars);
-  buildLiquidSparkles(sparkWrap);
-  animateFill(percent, liquid, TARGET_PERCENT, FILL_DURATION_MS);
+  function validateNow(showErrors = false) {
+    state.answers.email = emailInput.value;
+    state.answers.phone = phoneInput.value;
+
+    const ok = screen.validate ? screen.validate(state.answers) : true;
+    cta.disabled = !ok;
+
+    if (!showErrors) {
+      error.textContent = "";
+      return;
+    }
+
+    if (!isValidEmail(state.answers.email)) error.textContent = "Enter a valid email address.";
+    else if (!isValidPhone(state.answers.phone)) error.textContent = "Enter a valid phone number (10+ digits).";
+    else error.textContent = "";
+  }
+
+  emailInput.addEventListener("input", () => validateNow(false));
+  phoneInput.addEventListener("input", () => validateNow(false));
+  validateNow(false);
+
+  cta.addEventListener("click", async () => {
+    validateNow(true);
+    if (cta.disabled) return;
+
+    error.textContent = "";
+    cta.disabled = true;
+    const originalText = cta.textContent;
+    cta.textContent = "Sending...";
+
+    try {
+      await submitToFormSpark();
+      cta.textContent = "Sent ✓";
+      setTimeout(() => next(), 250);
+    } catch (e) {
+      console.error(e);
+      error.textContent = "Hmm… something didn’t send. Try again.";
+      cta.textContent = originalText;
+      cta.disabled = false;
+    }
+  });
 }
 
 /* =========================================================
    RESULTS / AUDIT VIEW
    ========================================================= */
-function getWinningArchetype() {
-  const entries = Object.entries(state.score);
-  entries.sort((a,b) => b[1]-a[1]);
-  return { archetype: entries[0][0], score: entries[0][1], sorted: entries };
-}
-
 function escapeHtml(str) {
   return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function renderResults(screen) {
@@ -1009,11 +1405,14 @@ function renderResults(screen) {
 
   const head = document.createElement("div");
   head.className = "auditHeader";
+
   const left = document.createElement("div");
   left.innerHTML = `<strong>Winning Archetype:</strong> ${win.archetype}`;
+
   const right = document.createElement("div");
   right.style.opacity = ".85";
-  right.textContent = `Totals: ${win.sorted.map(([k,v])=>`${k} ${v}`).join(" • ")}`;
+  right.textContent = `Totals: ${win.sorted.map(([k, v]) => `${k} ${v}`).join(" • ")}`;
+
   head.appendChild(left);
   head.appendChild(right);
 
@@ -1030,6 +1429,8 @@ function renderResults(screen) {
       <div><strong>DOB:</strong> ${escapeHtml(state.answers.dob || "")}</div>
       <div><strong>Birth Time:</strong> ${escapeHtml(state.answers.birthTime || "")}</div>
       <div><strong>Birthplace:</strong> ${escapeHtml(state.answers.birthPlace || "")}</div>
+      <div><strong>Email:</strong> ${escapeHtml(state.answers.email || "")}</div>
+      <div><strong>Phone:</strong> ${escapeHtml(normalizePhone(state.answers.phone || ""))}</div>
     </div>
   `;
   body.appendChild(meta);
@@ -1048,7 +1449,7 @@ function renderResults(screen) {
 
     const s = document.createElement("div");
     s.className = "auditS";
-    s.textContent = `Scoring: ${Object.entries(item.scoreDelta).map(([k,v]) => `+${v} ${k}`).join(" • ")}`;
+    s.textContent = `Scoring: ${Object.entries(item.scoreDelta).map(([k, v]) => `+${v} ${k}`).join(" • ")}`;
 
     row.appendChild(q);
     row.appendChild(a);
@@ -1060,7 +1461,7 @@ function renderResults(screen) {
   open1.className = "auditRow";
   open1.innerHTML = `
     <div class="auditQ">Open response</div>
-    <div class="auditA"><strong>Q:</strong> ${escapeHtml(screens.find(x=>x.id==="moneyQuestion1")?.title || "")}<br>
+    <div class="auditA"><strong>Q:</strong> ${escapeHtml(screens.find(x => x.id === "moneyQuestion1")?.title || "")}<br>
       <strong>A:</strong> ${escapeHtml(state.answers.moneyQuestion1 || "")}
     </div>
   `;
@@ -1070,7 +1471,7 @@ function renderResults(screen) {
   open2.className = "auditRow";
   open2.innerHTML = `
     <div class="auditQ">Open response</div>
-    <div class="auditA"><strong>Q:</strong> ${escapeHtml(screens.find(x=>x.id==="moneyQuestion2")?.title || "")}<br>
+    <div class="auditA"><strong>Q:</strong> ${escapeHtml(screens.find(x => x.id === "moneyQuestion2")?.title || "")}<br>
       <strong>A:</strong> ${escapeHtml(state.answers.moneyQuestion2 || "")}
     </div>
   `;
@@ -1082,11 +1483,12 @@ function renderResults(screen) {
 
   const restart = document.createElement("button");
   restart.className = "cta";
+  restart.type = "button";
   restart.textContent = "Restart";
   restart.addEventListener("click", () => {
     state.idx = 0;
     state.answers = {};
-    state.score = { STABILITY:0, EXPANSION:0, LUXURY:0, RESET:0 };
+    state.score = { STABILITY: 0, EXPANSION: 0, LUXURY: 0, RESET: 0 };
     state.auditTrail = [];
     render();
   });
@@ -1103,32 +1505,16 @@ function render() {
   const scr = screens[state.idx];
 
   switch (scr.type) {
-    case "choice":
-      renderChoice(scr);
-      break;
-    case "input":
-      renderInput(scr);
-      break;
-    case "textarea":
-      renderTextarea(scr);
-      break;
-    case "dobWheel":
-      renderDobWheel(scr);
-      break;
-    case "interstitialCalc":
-      renderInterstitialCalc(scr);
-      break;
-    case "tobWheel":
-  renderTobWheel(scr);
-  break;
-    case "interstitialBubble":
-      renderInterstitialBubble(scr);
-      break;
-    case "results":
-      renderResults(scr);
-      break;
-    default:
-      screenEl.textContent = "Unknown screen type.";
+    case "choice": renderChoice(scr); break;
+    case "input": renderInput(scr); break;
+    case "textarea": renderTextarea(scr); break;
+    case "dobWheel": renderDobWheel(scr); break;
+    case "tobWheel": renderTobWheel(scr); break;
+    case "interstitialCalc": renderInterstitialCalc(scr); break;
+    case "interstitialBubble": renderInterstitialBubble(scr); break;
+    case "contact": renderContact(scr); break;
+    case "results": renderResults(scr); break;
+    default: screenEl.textContent = "Unknown screen type.";
   }
 }
 
