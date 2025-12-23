@@ -1339,7 +1339,7 @@ function renderContact(screen) {
 
   const emailHint = document.createElement("div");
   emailHint.className = "miniHint";
-  emailHint.textContent = "This is where we will send your personalized report.";
+  emailHint.textContent = "";
 
   emailField.appendChild(emailLabel);
   emailField.appendChild(emailInput);
