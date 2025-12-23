@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,7 +7,24 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="app"></div>
-  <script defer src="app.js"></script>
+
+<div class="app">
+  <header class="topbar">
+    <button class="backBtn" id="backBtn" aria-label="Back">←</button>
+    <div class="brand">Astroline</div>
+    <div class="step" id="stepLabel">1/14</div>
+  </header>
+
+  <div class="progressWrap">
+    <div class="progressTrack"></div>
+    <div class="progressFill" id="progressFill"></div>
+  </div>
+
+  <main class="stage">
+    <section class="screen" id="screen"></section>
+  </main>
+</div>
+
+  <script src="app.js"></script>
 </body>
 </html>
