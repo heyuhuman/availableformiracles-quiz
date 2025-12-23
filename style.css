@@ -350,4 +350,114 @@ body {
 .orb {
   width: 130px;
   height: 130px;
-  border-radius: 99
+  border-radius: 999px;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(47, 211, 199, 0.35),
+    rgba(47, 211, 199, 0.05) 55%,
+    rgba(0, 0, 0, 0) 70%
+  );
+  border: 1px solid rgba(47, 211, 199, 0.18);
+  position: relative;
+  overflow: hidden;
+}
+
+.orb:before {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(47, 211, 199, 0),
+    rgba(47, 211, 199, 0.55),
+    rgba(47, 211, 199, 0)
+  );
+  animation: spin 1.05s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.checklist {
+  width: min(440px, 92%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.check.reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.check.reveal.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.check .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.check.done .dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 6px rgba(47, 211, 199, 0.12);
+}
+
+.cards3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+@media (max-width: 760px) {
+  .cards3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  background: rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  padding: 16px 14px;
+  text-align: left;
+}
+
+.card .label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  margin-bottom: 6px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card .value {
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 750;
+}
