@@ -272,4 +272,82 @@ body {
 .field input {
   width: 100%;
   padding: 14px 14px;
-  bo
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 30, 40, 0.55);
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: rgba(47, 211, 199, 0.8);
+}
+
+.note {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.footer {
+  width: min(980px, 100%);
+  padding-top: 14px;
+}
+
+.primary {
+  width: min(560px, 100%);
+  height: 54px;
+  border: none;
+  border-radius: 999px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  color: #062027;
+  cursor: pointer;
+  font-size: 16px;
+  display: block;
+  margin: 0 auto;
+  transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+}
+
+.primary:active {
+  transform: scale(0.99);
+}
+
+.primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: saturate(0.5);
+}
+
+.fade-in {
+  animation: fadeIn 0.32s ease both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mapping interstitial */
+.mapping {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding-top: 14px;
+}
+
+.orb {
+  width: 130px;
+  height: 130px;
+  border-radius: 99
