@@ -59,7 +59,7 @@ const screens = [
     id: "dob",
     type: "input",
     title: (s) => `Nice to meet you, ${s.answers.firstName || "love"}. When were you born?`,
-    subtitle: "Day / month / year is perfect.",
+    subtitle: "Please format in YEAR / MONTH / DAY.",
     fields: [{ key: "dob", label: "Date of birth", placeholder: "YYYY-MM-DD" }],
     validate: (vals) => !!vals.dob?.trim()
   },
