@@ -155,7 +155,7 @@ const screens = [
     type: "interstitialBubble",
     title: "Forecast accuracy",
     subtitle: "Calculating the accuracy of your personalized blueprint...",
-    speech: "Drop the Share a bit more to reveal what’s driving you to get a more accurate reading!",
+    speech: "Almost d one! Share a bit more to reveal what’s driving you to get a more accurate reading!",
     ctaText: "Continue",
     autoAdvance: false
   },
