@@ -361,11 +361,10 @@ function renderInput(screen) {
   cta.textContent = "Continue";
   cta.disabled = screen.validate ? !screen.validate(state.answers) : false;
 
-  cta.addEventListener("click", () => {
-    // store screen-level id too if desired
-    state.answers[screen.id] = true;
-    next();
-  });
+ cta.addEventListener("click", () => {
+  // values already stored per-field
+  next();
+});
 
   screenEl.appendChild(cta);
 }
