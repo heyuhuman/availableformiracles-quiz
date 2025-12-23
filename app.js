@@ -1,842 +1,795 @@
-(() => {
-  // Prevent double-init (e.g., hot reload, multiple script loads)
-  if (window.__MONEY_QUIZ_INIT__) return;
-  window.__MONEY_QUIZ_INIT__ = true;
+/* =========================================================
+   FULL SURVEY FLOW (integrated)
+   - screens config drives everything
+   - answers stored in state.answers
+   - scoring stored in state.score + state.auditTrail
+   ========================================================= */
 
-  // =========================================
-  // Config
-  // =========================================
-  const FORMSPARK_URL = "https://submit-form.com/2kIN1hL95";
-  const TY_BASE = "https://www.availableformiracles.com/ty/";
+/* ------- Interstitial #2 config ------- */
+const TARGET_PERCENT = 78;
+const FILL_DURATION_MS = 2400;
+const STAR_COUNT = 40;
+const SPARKLE_COUNT = 18;
 
-  // =========================================
-  // State
-  // =========================================
-  const state = {
-    stepIndex: 0,
+/* ------- Global state ------- */
+const state = {
+  idx: 0,
+  answers: {},        // { screenId: value }
+  score: {            // archetype totals
+    STABILITY: 0,
+    EXPANSION: 0,
+    LUXURY: 0,
+    RESET: 0
+  },
+  auditTrail: []      // [{qid, question, answerLabel, scoreDelta:{...}}]
+};
 
-    gender: "",
-    dob: { month: "", day: "", year: "" },
+/* ------- Elements ------- */
+const screenEl = document.getElementById("screen");
+const stepLabel = document.getElementById("stepLabel");
+const progressFill = document.getElementById("progressFill");
+const backBtn = document.getElementById("backBtn");
 
-    birthTimeKnown: true,
-    birthTime: { hour: "", minute: "", ampm: "" },
+/* =========================================================
+   SCREENS CONFIG
+   Replace questions/options with your final list.
+   --------------------------------------------------------- */
+const screens = [
+  {
+    id: "gender",
+    type: "choice",
+    title: "Select your gender to start",
+    subtitle: "",
+    options: [
+      { value: "female", label: "Female", icon: "♀" },
+      { value: "male", label: "Male", icon: "♂" },
+      { value: "nonbinary", label: "Non-binary", icon: "⚧" }
+    ],
+    nextOnSelect: true
+  },
+  {
+    id: "firstName",
+    type: "input",
+    title: "What’s your first name?",
+    subtitle: "We’ll personalize your blueprint as you go.",
+    fields: [{ key: "firstName", label: "First name", placeholder: "Type your first name..." }],
+    validate: (vals) => !!vals.firstName?.trim()
+  },
+  {
+    id: "dob",
+    type: "input",
+    title: (s) => `Nice to meet you, ${s.answers.firstName || "love"}. When were you born?`,
+    subtitle: "Day / month / year is perfect.",
+    fields: [{ key: "dob", label: "Date of birth", placeholder: "YYYY-MM-DD" }],
+    validate: (vals) => !!vals.dob?.trim()
+  },
+  {
+    id: "birthTime",
+    type: "input",
+    title: "Do you know your birth time?",
+    subtitle: "If you don’t remember, type “Unknown”.",
+    fields: [{ key: "birthTime", label: "Time of birth", placeholder: "e.g., 2:00 AM (or Unknown)" }],
+    validate: (vals) => !!vals.birthTime?.trim()
+  },
+  {
+    id: "birthPlace",
+    type: "input",
+    title: "Where were you born?",
+    subtitle: "City and province/state (ex: Saskatoon, SK).",
+    fields: [{ key: "birthPlace", label: "Birthplace", placeholder: "City, Province/State" }],
+    validate: (vals) => !!vals.birthPlace?.trim()
+  },
 
-    birthPlace: { city: "", region: "", country: "", lat: null, lng: null },
+  /* -------- Interstitial #1 -------- */
+  {
+    id: "interstitial1",
+    type: "interstitialCalc",
+    title: "Aligning...",
+    subtitle: "One moment while we connect the dots.",
+    rows: [
+      { icon: "✨", text: "Reading your stability vs. expansion baseline" },
+      { icon: "🧠", text: "Detecting your safety signals around money" },
+      { icon: "🧬", text: "Mapping your energetic coding markers" },
+      { icon: "🧿", text: "Identifying the money story running in the background" },
+      { icon: "🔮", text: "Calibrating your next best shift" }
+    ],
+    autoAdvanceMs: 3600
+  },
 
-    answers: {
-      q1_defaultWhenUncertain: "",
-      q2_moneyStressTrigger: "",
-      qExtra_incomeSource: "",
-    },
+  /* -------- Archetype questions (examples) -------- */
+  {
+    id: "incomeNow",
+    type: "choice",
+    title: (s) => `Great, ${s.answers.firstName || "love"}… first, how does money come to you right now?`,
+    subtitle: "Pick the closest match.",
+    options: [
+      { value: "job", label: "Job / employment income", icon: "💼", score: { STABILITY: 2 } },
+      { value: "self", label: "Self-employed or contract work", icon: "🧾", score: { EXPANSION: 2 } },
+      { value: "owner", label: "Business owner (systems or team)", icon: "🏗️", score: { LUXURY: 1, EXPANSION: 2 } },
+      { value: "creator", label: "Side income / creator work", icon: "📱", score: { EXPANSION: 2 } },
+      { value: "spouse", label: "Family / spouse provides most income", icon: "🏡", score: { STABILITY: 1, RESET: 1 } },
+      { value: "gov", label: "Government support / grants", icon: "🧾", score: { RESET: 2 } }
+    ],
+    nextOnSelect: true
+  },
+  {
+    id: "moneyEmotion",
+    type: "choice",
+    title: (s) => `Thanks ${s.answers.firstName || ""}. When you think about money… which feels closest to your reality right now?`,
+    subtitle: "No judgment. Just data.",
+    options: [
+      { value: "comfortable", label: "Comfortable – bills covered + a little extra", icon: "🙂", score: { STABILITY: 2 } },
+      { value: "expansive", label: "Expansive – I can spend on a whim without stress", icon: "🌬️", score: { EXPANSION: 2 } },
+      { value: "luxury", label: "Luxury – I don’t think twice about bills or desires", icon: "💎", score: { LUXURY: 3 } },
+      { value: "stressful", label: "Stressful – paycheck to paycheck", icon: "😬", score: { RESET: 2 } },
+      { value: "debt", label: "Debt – I feel like I’m moving backward", icon: "🧱", score: { RESET: 3 } }
+    ],
+    nextOnSelect: true
+  },
+  {
+    id: "manifestation",
+    type: "choice",
+    title: "Do you use any mindset / manifestation tools now?",
+    subtitle: "Pick the closest one.",
+    options: [
+      { value: "daily", label: "Yes – it’s a daily practice", icon: "🧘", score: { EXPANSION: 1, LUXURY: 1 } },
+      { value: "sometimes", label: "Sometimes – when I remember", icon: "🌙", score: { EXPANSION: 1 } },
+      { value: "curious", label: "Not really… but I’m curious", icon: "👀", score: { STABILITY: 1 } },
+      { value: "no", label: "No – I’m more practical/logic-led", icon: "📊", score: { STABILITY: 2 } }
+    ],
+    nextOnSelect: true
+  },
+  {
+    id: "commitment",
+    type: "choice",
+    title: "How willing are you to do what it takes to hit your money goals?",
+    subtitle: "Be honest with your current bandwidth.",
+    options: [
+      { value: "allin", label: "All in. I’m done playing small.", icon: "🔥", score: { EXPANSION: 2, LUXURY: 1 } },
+      { value: "steady", label: "Steady. I’ll do consistent steps.", icon: "✅", score: { STABILITY: 2 } },
+      { value: "overwhelm", label: "I want it… but I’m overwhelmed.", icon: "🫠", score: { RESET: 2 } },
+      { value: "skeptical", label: "I’m skeptical / need proof first.", icon: "🧩", score: { STABILITY: 1 } }
+    ],
+    nextOnSelect: true
+  },
 
-    scores: { stability: 0, freedom: 0, worth: 0, avoidance: 0 },
+  /* -------- Interstitial #2 (your bubble) -------- */
+  {
+    id: "interstitial2",
+    type: "interstitialBubble",
+    title: "Forecast accuracy",
+    subtitle: "Calculating your cosmic energy and personalized blueprint...",
+    speech: "Share a bit more to reveal what’s driving you to get a more accurate reading!",
+    autoAdvance: false, // continue button controls next
+    progressOverride: "34%", // matches your screenshot (optional)
+    stepOverride: "6/14"      // optional
+  },
 
-    fullName: "",
-    email: "",
-    phone: "",
-  };
+  /* -------- Your Q9 text input (required, allow NA) -------- */
+  {
+    id: "moneyQuestion1",
+    type: "textarea",
+    title: "What’s the biggest question about money you want this blueprint to reveal?",
+    subtitle: "Type NA if you don’t have one right now.",
+    placeholder: "Type here...",
+    validate: (vals) => !!vals.moneyQuestion1?.trim()
+  },
+  {
+    id: "moneyQuestion2",
+    type: "textarea",
+    title: "If this blueprint answered one money question for you… what would you want it to be?",
+    subtitle: "Type NA if you don’t have one right now.",
+    placeholder: "Type here...",
+    validate: (vals) => !!vals.moneyQuestion2?.trim()
+  },
 
-  // =========================================
-  // DOM
-  // =========================================
-  const $root = document.getElementById("screenRoot");
-  const $back = document.getElementById("backBtn");
-  const $continue = document.getElementById("continueBtn");
-  const $progressFill = document.getElementById("progressFill");
-  const $stepCount = document.getElementById("stepCount");
-
-  // =========================================
-  // Steps
-  // =========================================
-  const steps = [
-    renderGender, // 0
-    renderDOBWheels, // 1
-    renderBirthTime, // 2
-    renderBirthPlace, // 3
-    renderMapping, // 4 (auto-advance)
-    renderSnapshotTeaser, // 5
-    renderQuizQ1, // 6
-    renderQuizQ2, // 7
-    renderOptIn, // 8
-    renderExtraData, // 9
-    renderSubmitting, // 10 (submits & redirects)
-  ];
-
-  const TOTAL = steps.length;
-
-  // =========================================
-  // Events
-  // =========================================
-  $continue.addEventListener("click", () => next());
-  $back.addEventListener("click", () => back());
-
-  // =========================================
-  // Navigation
-  // =========================================
-  function goTo(i) {
-    state.stepIndex = Math.max(0, Math.min(i, TOTAL - 1));
-    steps[state.stepIndex]();
+  /* -------- Results -------- */
+  {
+    id: "results",
+    type: "results",
+    title: "Audit Mode Results",
+    subtitle: "Here’s exactly how your archetype was calculated."
   }
+];
 
-  function next() {
-    if (state.stepIndex === 4 || state.stepIndex === 10) return;
+/* =========================================================
+   RENDERING
+   ========================================================= */
 
-    if (!isStepValid(state.stepIndex)) {
-      pulseContinue();
-      return;
-    }
+function totalSteps() {
+  return screens.length;
+}
 
-    goTo(state.stepIndex + 1);
+function setHeaderProgress() {
+  const stepText = `${state.idx + 1}/${totalSteps()}`;
+  stepLabel.textContent = stepText;
+
+  // default progress = % through screens
+  const pct = Math.round(((state.idx + 1) / totalSteps()) * 100);
+  progressFill.style.width = pct + "%";
+
+  // allow overrides on special screens
+  const scr = screens[state.idx];
+  if (scr?.progressOverride) progressFill.style.width = scr.progressOverride;
+  if (scr?.stepOverride) stepLabel.textContent = scr.stepOverride;
+
+  backBtn.style.visibility = state.idx === 0 ? "hidden" : "visible";
+}
+
+function clearScreen() {
+  screenEl.innerHTML = "";
+}
+
+function h2Title(text) {
+  const h = document.createElement("h2");
+  h.className = "title";
+  h.textContent = text;
+  return h;
+}
+
+function pSub(text) {
+  const p = document.createElement("p");
+  p.className = "subtitle";
+  p.textContent = text || "";
+  return p;
+}
+
+function next() {
+  if (state.idx < screens.length - 1) {
+    state.idx++;
+    render();
   }
+}
 
-  function back() {
-    if (state.stepIndex <= 0) return;
-    goTo(state.stepIndex - 1);
+function back() {
+  if (state.idx > 0) {
+    state.idx--;
+    render();
   }
+}
 
-  function pulseContinue() {
-    const old = $continue.textContent;
-    $continue.textContent = "Complete this step to continue";
+/* ----- scoring helper ----- */
+function applyScore(screen, option) {
+  if (!option?.score) return;
+
+  // add to totals
+  Object.entries(option.score).forEach(([k, v]) => {
+    state.score[k] = (state.score[k] || 0) + v;
+  });
+
+  // add audit trail
+  state.auditTrail.push({
+    qid: screen.id,
+    question: typeof screen.title === "function" ? screen.title(state) : screen.title,
+    answerLabel: option.label,
+    scoreDelta: option.score
+  });
+}
+
+function renderChoice(screen) {
+  const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
+
+  screenEl.appendChild(h2Title(title));
+  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+
+  const list = document.createElement("div");
+  list.className = "optionList";
+
+  screen.options.forEach(opt => {
+    const btn = document.createElement("button");
+    btn.className = "optionBtn";
+    btn.type = "button";
+
+    const ico = document.createElement("div");
+    ico.className = "optionIcon";
+    ico.textContent = opt.icon || "•";
+
+    const txt = document.createElement("div");
+    txt.textContent = opt.label;
+
+    btn.appendChild(ico);
+    btn.appendChild(txt);
+
+    btn.addEventListener("click", () => {
+      state.answers[screen.id] = opt.value;
+
+      // scoring (if present)
+      applyScore(screen, opt);
+
+      if (screen.nextOnSelect) next();
+      else render(); // re-render if needed
+    });
+
+    list.appendChild(btn);
+  });
+
+  screenEl.appendChild(list);
+
+  // If not auto-next, show Continue
+  if (!screen.nextOnSelect) {
+    const cta = document.createElement("button");
+    cta.className = "cta";
+    cta.textContent = "Continue";
+    cta.disabled = !state.answers[screen.id];
+    cta.addEventListener("click", next);
+    screenEl.appendChild(cta);
+  }
+}
+
+function renderInput(screen) {
+  const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
+
+  screenEl.appendChild(h2Title(title));
+  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+
+  const wrap = document.createElement("div");
+  wrap.className = "formWrap";
+
+  const values = {};
+  screen.fields.forEach(f => {
+    const field = document.createElement("div");
+    field.className = "field";
+
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = f.label;
+
+    const input = document.createElement("input");
+    input.className = "input";
+    input.placeholder = f.placeholder || "";
+    input.value = state.answers[f.key] || "";
+
+    input.addEventListener("input", () => {
+      values[f.key] = input.value;
+      // live store
+      state.answers[f.key] = input.value;
+      cta.disabled = screen.validate ? !screen.validate(state.answers) : false;
+    });
+
+    // init values
+    values[f.key] = input.value;
+
+    field.appendChild(label);
+    field.appendChild(input);
+    wrap.appendChild(field);
+  });
+
+  screenEl.appendChild(wrap);
+
+  const cta = document.createElement("button");
+  cta.className = "cta";
+  cta.textContent = "Continue";
+  cta.disabled = screen.validate ? !screen.validate(state.answers) : false;
+
+  cta.addEventListener("click", () => {
+    // store screen-level id too if desired
+    state.answers[screen.id] = true;
+    next();
+  });
+
+  screenEl.appendChild(cta);
+}
+
+function renderTextarea(screen) {
+  screenEl.appendChild(h2Title(screen.title));
+  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+
+  const wrap = document.createElement("div");
+  wrap.className = "formWrap";
+
+  const field = document.createElement("div");
+  field.className = "field";
+
+  const label = document.createElement("div");
+  label.className = "label";
+  label.textContent = "Your answer";
+
+  const ta = document.createElement("textarea");
+  ta.className = "input";
+  ta.style.height = "120px";
+  ta.style.paddingTop = "12px";
+  ta.style.resize = "none";
+  ta.placeholder = screen.placeholder || "";
+  ta.value = state.answers[screen.id] || "";
+
+  field.appendChild(label);
+  field.appendChild(ta);
+  wrap.appendChild(field);
+  screenEl.appendChild(wrap);
+
+  const cta = document.createElement("button");
+  cta.className = "cta";
+  cta.textContent = "Continue";
+
+  function validateNow() {
+    state.answers[screen.id] = ta.value;
+    cta.disabled = screen.validate ? !screen.validate(state.answers) : false;
+  }
+  ta.addEventListener("input", validateNow);
+  validateNow();
+
+  cta.addEventListener("click", next);
+  screenEl.appendChild(cta);
+}
+
+/* =========================================================
+   Interstitial #1: animated calculating rows
+   ========================================================= */
+function renderInterstitialCalc(screen) {
+  screenEl.appendChild(h2Title(screen.title));
+  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+
+  const wrap = document.createElement("div");
+  wrap.className = "calcWrap";
+
+  const orb = document.createElement("div");
+  orb.className = "calcOrb";
+
+  const list = document.createElement("div");
+  list.className = "calcList";
+
+  const rowEls = screen.rows.map((r) => {
+    const row = document.createElement("div");
+    row.className = "calcRow";
+
+    const left = document.createElement("div");
+    left.className = "calcLeft";
+
+    const badge = document.createElement("div");
+    badge.className = "calcBadge";
+    badge.textContent = r.icon || "✨";
+
+    const txt = document.createElement("div");
+    txt.textContent = r.text;
+
+    left.appendChild(badge);
+    left.appendChild(txt);
+
+    const status = document.createElement("div");
+    status.className = "calcStatus";
+    status.textContent = "Calculating";
+
+    const check = document.createElement("div");
+    check.className = "calcCheck";
+
+    row.appendChild(left);
+    row.appendChild(status);
+    row.appendChild(check);
+
+    list.appendChild(row);
+    return { row, status, check };
+  });
+
+  wrap.appendChild(orb);
+  wrap.appendChild(list);
+  screenEl.appendChild(wrap);
+
+  // animate reveal + completion
+  rowEls.forEach((obj, i) => {
     setTimeout(() => {
-      $continue.textContent = old;
-      validateContinue();
-    }, 850);
+      obj.row.classList.add("show");
+      obj.status.textContent = "Calculating";
+    }, i * 380);
+  });
+
+  rowEls.forEach((obj, i) => {
+    setTimeout(() => {
+      obj.status.textContent = "Complete";
+      obj.check.classList.add("done");
+    }, 900 + i * 520);
+  });
+
+  const auto = screen.autoAdvanceMs || 3200;
+  setTimeout(() => {
+    next();
+  }, auto);
+
+  // no CTA on this one
+}
+
+/* =========================================================
+   Interstitial #2: bubble fill
+   ========================================================= */
+function buildStars(starsWrap) {
+  starsWrap.innerHTML = "";
+  for (let i = 0; i < STAR_COUNT; i++) {
+    const s = document.createElement("span");
+    const x = Math.random() * 100;
+    const y = Math.random() * 100;
+    const op = 0.30 + Math.random() * 0.60;
+    const tw = 1200 + Math.random() * 2400;
+    const dr = 3800 + Math.random() * 5200;
+    s.style.left = x + "%";
+    s.style.top  = y + "%";
+    s.style.setProperty("--op", op.toFixed(2));
+    s.style.setProperty("--tw", tw.toFixed(0) + "ms");
+    s.style.setProperty("--dr", dr.toFixed(0) + "ms");
+    const size = (Math.random() < 0.22) ? 3 : 2;
+    s.style.width = size + "px";
+    s.style.height = size + "px";
+    starsWrap.appendChild(s);
+  }
+}
+
+function buildLiquidSparkles(liquidSparklesEl) {
+  liquidSparklesEl.innerHTML = "";
+  for (let i = 0; i < SPARKLE_COUNT; i++) {
+    const sp = document.createElement("span");
+    const x = Math.random() * 100;
+    const delay = Math.random() * 2400;
+    const rise = 2200 + Math.random() * 2200;
+    const tw = 900 + Math.random() * 1600;
+    const op = 0.15 + Math.random() * 0.70;
+    const y = 70 + Math.random() * 40;
+
+    sp.style.left = x + "%";
+    sp.style.top  = y + "%";
+    sp.style.animationDelay = `${delay}ms, ${delay}ms`;
+    sp.style.setProperty("--rise", `${rise}ms`);
+    sp.style.setProperty("--tw", `${tw}ms`);
+    sp.style.setProperty("--op", op.toFixed(2));
+
+    const size = (Math.random() < 0.35) ? 2 : 3;
+    sp.style.width = size + "px";
+    sp.style.height = size + "px";
+
+    liquidSparklesEl.appendChild(sp);
+  }
+}
+
+function animateFill(percentText, liquid, toPercent, durationMs) {
+  const start = performance.now();
+  const from = 0;
+
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
   }
 
-  // =========================================
-  // UI helpers
-  // =========================================
-  function setHeaderUI() {
-    $stepCount.textContent = `${Math.min(state.stepIndex + 1, TOTAL)}/${TOTAL}`;
-    const pct = Math.round((state.stepIndex / (TOTAL - 1)) * 100);
-    $progressFill.style.width = `${pct}%`;
-    $back.disabled = state.stepIndex === 0 || state.stepIndex === TOTAL - 1;
+  function tick(now) {
+    const elapsed = now - start;
+    const t = Math.min(1, elapsed / durationMs);
+    const eased = easeOutCubic(t);
+
+    const current = Math.round(from + (toPercent - from) * eased);
+
+    percentText.textContent = current + "%";
+    liquid.style.height = current + "%";
+
+    if (t < 1) requestAnimationFrame(tick);
   }
 
-  function mount(html) {
-    $root.classList.remove("fade-in");
-    $root.innerHTML = html;
-    requestAnimationFrame(() => $root.classList.add("fade-in"));
-    setHeaderUI();
-    validateContinue();
+  requestAnimationFrame(tick);
+}
+
+function renderInterstitialBubble(screen) {
+  screenEl.appendChild(h2Title(screen.title));
+  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+
+  const bubbleWrap = document.createElement("div");
+  bubbleWrap.className = "bubbleWrap";
+
+  const stars = document.createElement("div");
+  stars.className = "stars";
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.setAttribute("aria-label", "Forecast accuracy bubble");
+
+  const glass = document.createElement("div");
+  glass.className = "bubbleGlass";
+
+  const aurora = document.createElement("div");
+  aurora.className = "aurora oilslick";
+
+  const liquid = document.createElement("div");
+  liquid.className = "liquid";
+  liquid.style.height = "0%";
+
+  const waveBack = document.createElement("div");
+  waveBack.className = "wave waveBack";
+
+  const waveFront = document.createElement("div");
+  waveFront.className = "wave waveFront";
+
+  const sparkWrap = document.createElement("div");
+  sparkWrap.className = "liquidSparkles";
+
+  const percent = document.createElement("div");
+  percent.className = "percent";
+  percent.textContent = "0%";
+
+  liquid.appendChild(waveBack);
+  liquid.appendChild(waveFront);
+  liquid.appendChild(sparkWrap);
+
+  bubble.appendChild(glass);
+  bubble.appendChild(aurora);
+  bubble.appendChild(liquid);
+  bubble.appendChild(percent);
+
+  bubbleWrap.appendChild(stars);
+  bubbleWrap.appendChild(bubble);
+
+  screenEl.appendChild(bubbleWrap);
+
+  // speech
+  const speech = document.createElement("div");
+  speech.className = "speech";
+  const speechBubble = document.createElement("div");
+  speechBubble.className = "speechBubble";
+  speechBubble.textContent = screen.speech || "One more step...";
+  const dot = document.createElement("div");
+  dot.className = "avatarDot";
+  speech.appendChild(speechBubble);
+  speech.appendChild(dot);
+  screenEl.appendChild(speech);
+
+  // CTA
+  const cta = document.createElement("button");
+  cta.className = "cta";
+  cta.textContent = "Continue";
+  cta.addEventListener("click", next);
+  screenEl.appendChild(cta);
+
+  // start animations
+  buildStars(stars);
+  buildLiquidSparkles(sparkWrap);
+  animateFill(percent, liquid, TARGET_PERCENT, FILL_DURATION_MS);
+}
+
+/* =========================================================
+   RESULTS / AUDIT VIEW
+   ========================================================= */
+function getWinningArchetype() {
+  const entries = Object.entries(state.score);
+  entries.sort((a,b) => b[1]-a[1]);
+  return { archetype: entries[0][0], score: entries[0][1], sorted: entries };
+}
+
+function renderResults(screen) {
+  screenEl.appendChild(h2Title(screen.title));
+  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+
+  const win = getWinningArchetype();
+
+  const card = document.createElement("div");
+  card.className = "audit";
+
+  const head = document.createElement("div");
+  head.className = "auditHeader";
+  const left = document.createElement("div");
+  left.innerHTML = `<strong>Winning Archetype:</strong> ${win.archetype}`;
+  const right = document.createElement("div");
+  right.style.opacity = ".85";
+  right.textContent = `Totals: ${win.sorted.map(([k,v])=>`${k} ${v}`).join(" • ")}`;
+  head.appendChild(left);
+  head.appendChild(right);
+
+  const body = document.createElement("div");
+  body.className = "auditBody";
+
+  // show stored non-scoring answers too
+  const meta = document.createElement("div");
+  meta.className = "auditRow";
+  meta.innerHTML = `
+    <div class="auditQ">Captured inputs</div>
+    <div class="auditA">
+      <div><strong>Name:</strong> ${state.answers.firstName || ""}</div>
+      <div><strong>Gender:</strong> ${state.answers.gender || ""}</div>
+      <div><strong>DOB:</strong> ${state.answers.dob || ""}</div>
+      <div><strong>Birth Time:</strong> ${state.answers.birthTime || ""}</div>
+      <div><strong>Birthplace:</strong> ${state.answers.birthPlace || ""}</div>
+    </div>
+  `;
+  body.appendChild(meta);
+
+  // scoring trail
+  state.auditTrail.forEach(item => {
+    const row = document.createElement("div");
+    row.className = "auditRow";
+
+    const q = document.createElement("div");
+    q.className = "auditQ";
+    q.textContent = item.question;
+
+    const a = document.createElement("div");
+    a.className = "auditA";
+    a.textContent = `Answer: ${item.answerLabel}`;
+
+    const s = document.createElement("div");
+    s.className = "auditS";
+    s.textContent = `Scoring: ${Object.entries(item.scoreDelta).map(([k,v]) => `+${v} ${k}`).join(" • ")}`;
+
+    row.appendChild(q);
+    row.appendChild(a);
+    row.appendChild(s);
+    body.appendChild(row);
+  });
+
+  // text questions
+  const open1 = document.createElement("div");
+  open1.className = "auditRow";
+  open1.innerHTML = `
+    <div class="auditQ">Open response</div>
+    <div class="auditA"><strong>Q:</strong> ${screens.find(x=>x.id==="moneyQuestion1")?.title || ""}<br>
+      <strong>A:</strong> ${escapeHtml(state.answers.moneyQuestion1 || "")}
+    </div>
+  `;
+  body.appendChild(open1);
+
+  const open2 = document.createElement("div");
+  open2.className = "auditRow";
+  open2.innerHTML = `
+    <div class="auditQ">Open response</div>
+    <div class="auditA"><strong>Q:</strong> ${screens.find(x=>x.id==="moneyQuestion2")?.title || ""}<br>
+      <strong>A:</strong> ${escapeHtml(state.answers.moneyQuestion2 || "")}
+    </div>
+  `;
+  body.appendChild(open2);
+
+  card.appendChild(head);
+  card.appendChild(body);
+  screenEl.appendChild(card);
+
+  const restart = document.createElement("button");
+  restart.className = "cta";
+  restart.textContent = "Restart";
+  restart.addEventListener("click", () => {
+    state.idx = 0;
+    state.answers = {};
+    state.score = { STABILITY:0, EXPANSION:0, LUXURY:0, RESET:0 };
+    state.auditTrail = [];
+    render();
+  });
+  screenEl.appendChild(restart);
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+/* =========================================================
+   MAIN RENDER SWITCH
+   ========================================================= */
+function render() {
+  clearScreen();
+  setHeaderProgress();
+
+  const scr = screens[state.idx];
+
+  switch (scr.type) {
+    case "choice":
+      renderChoice(scr);
+      break;
+    case "input":
+      renderInput(scr);
+      break;
+    case "textarea":
+      renderTextarea(scr);
+      break;
+    case "interstitialCalc":
+      renderInterstitialCalc(scr);
+      break;
+    case "interstitialBubble":
+      renderInterstitialBubble(scr);
+      break;
+    case "results":
+      renderResults(scr);
+      break;
+    default:
+      screenEl.textContent = "Unknown screen type.";
   }
-
-  function validateContinue() {
-    if (state.stepIndex === 4 || state.stepIndex === 10) {
-      $continue.disabled = true;
-      $continue.style.opacity = 0.35;
-      return;
-    }
-
-    $continue.style.opacity = 1;
-    $continue.disabled = !isStepValid(state.stepIndex);
-  }
-
-  // =========================================
-  // Validation
-  // =========================================
-  function isStepValid(idx) {
-    switch (idx) {
-      case 0:
-        return !!state.gender;
-
-      case 1:
-        return !!state.dob.month && !!state.dob.day && !!state.dob.year;
-
-      case 2:
-        if (!state.birthTimeKnown) return true;
-        return (
-          !!state.birthTime.hour && !!state.birthTime.minute && !!state.birthTime.ampm
-        );
-
-      case 3:
-        return (
-          !!state.birthPlace.city &&
-          !!state.birthPlace.region &&
-          !!state.birthPlace.country
-        );
-
-      case 6:
-        return !!state.answers.q1_defaultWhenUncertain;
-
-      case 7:
-        return !!state.answers.q2_moneyStressTrigger;
-
-      case 8:
-        return (
-          !!state.fullName &&
-          isEmail(state.email) &&
-          isPhone(state.phone)
-        );
-
-      case 9:
-        return !!state.answers.qExtra_incomeSource;
-
-      default:
-        return true;
-    }
-  }
-
-  function isEmail(v) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
-  }
-
-  function isPhone(v) {
-    const digits = String(v || "").replace(/\D/g, "");
-    return digits.length >= 10;
-  }
-
-  // =========================================
-  // Utils
-  // =========================================
-  function escapeHtml(str) {
-    return String(str || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  function escapeAttr(str) {
-    return escapeHtml(str).replaceAll("\n", " ");
-  }
-
-  function choiceCard(value, ico, label) {
-    const selected = state.gender === value ? "selected" : "";
-    return `
-      <div class="choice ${selected}" data-value="${escapeAttr(value)}">
-        <div class="ico">${escapeHtml(ico)}</div>
-        <div class="big">${escapeHtml(label)}</div>
-      </div>
-    `;
-  }
-
-  function choiceText(value, text) {
-    return `
-      <div class="choice" data-value="${escapeAttr(value)}">
-        <div class="txt">${escapeHtml(text)}</div>
-      </div>
-    `;
-  }
-
-  function buildDays() {
-    return Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0"));
-  }
-
-  function buildYears(min, max) {
-    const years = [];
-    for (let y = max; y >= min; y--) years.push(String(y));
-    return years;
-  }
-
-  function formatPlace() {
-    const p = state.birthPlace;
-    const parts = [p.city, p.region, p.country].filter(Boolean);
-    return parts.join(", ");
-  }
-
-  function parsePlace(input) {
-    const raw = String(input || "").trim();
-    const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
-    return {
-      city: parts[0] || "",
-      region: parts[1] || "",
-      country: parts[2] || "",
-    };
-  }
-
-  function bumpScore(key) {
-    if (!(key in state.scores)) return;
-    state.scores[key] += 1;
-  }
-
-  function getTopPattern() {
-    let best = "stability";
-    let bestVal = -Infinity;
-
-    Object.entries(state.scores).forEach(([k, v]) => {
-      if (v > bestVal) {
-        best = k;
-        bestVal = v;
-      }
-    });
-
-    return best;
-  }
-
-  // =========================================
-  // Geolocation (city/state/country)
-  // =========================================
-  async function reverseGeocode(lat, lng) {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
-      lat
-    )}&lon=${encodeURIComponent(lng)}`;
-
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    const a = data.address || {};
-
-    const city =
-      a.city || a.town || a.village || a.hamlet || a.municipality || "";
-    const region = a.state || a.province || a.region || a.county || "";
-    const country = a.country || "";
-
-    if (!city || !region || !country) return null;
-    return { city, region, country };
-  }
-
-  // =========================================
-  // Screens
-  // =========================================
-  function renderGender() {
-    mount(`
-      <div class="inner">
-        <div class="kicker">The Unspoken Money Rule</div>
-        <div class="h1">Select your gender to start</div>
-        <div class="sub">This helps us tailor language and examples in your report.</div>
-
-        <div class="choice-grid" id="genderChoices">
-          ${choiceCard("female", "♀", "Female")}
-          ${choiceCard("male", "♂", "Male")}
-          ${choiceCard("nonbinary", "⚧", "Non-binary")}
-        </div>
-
-        <div class="note">You can change this later.</div>
-      </div>
-    `);
-
-    const grid = document.getElementById("genderChoices");
-    grid.querySelectorAll(".choice").forEach((el) => {
-      el.addEventListener("click", () => {
-        grid.querySelectorAll(".choice").forEach((x) => x.classList.remove("selected"));
-        el.classList.add("selected");
-        state.gender = el.getAttribute("data-value") || "";
-        validateContinue();
-      });
-    });
-
-    validateContinue();
-  }
-
-  function renderDOBWheels() {
-    const years = buildYears(1930, new Date().getFullYear());
-    const months = [
-      ["01", "January"],
-      ["02", "February"],
-      ["03", "March"],
-      ["04", "April"],
-      ["05", "May"],
-      ["06", "June"],
-      ["07", "July"],
-      ["08", "August"],
-      ["09", "September"],
-      ["10", "October"],
-      ["11", "November"],
-      ["12", "December"],
-    ];
-
-    mount(`
-      <div class="inner">
-        <div class="h1">When’s your birthday?</div>
-        <div class="sub">We’ll use this to personalize your report.</div>
-
-        <div class="wheels">
-          <div class="wheel">
-            <label>Month</label>
-            <select id="dobMonth">
-              <option value="" hidden>Select</option>
-              ${months
-                .map(
-                  ([v, l]) =>
-                    `<option value="${v}" ${state.dob.month === v ? "selected" : ""}>${l}</option>`
-                )
-                .join("")}
-            </select>
-          </div>
-
-          <div class="wheel">
-            <label>Day</label>
-            <select id="dobDay">
-              <option value="" hidden>Select</option>
-              ${buildDays()
-                .map(
-                  (d) =>
-                    `<option value="${d}" ${state.dob.day === d ? "selected" : ""}>${parseInt(
-                      d,
-                      10
-                    )}</option>`
-                )
-                .join("")}
-            </select>
-          </div>
-
-          <div class="wheel">
-            <label>Year</label>
-            <select id="dobYear">
-              <option value="" hidden>Select</option>
-              ${years
-                .map(
-                  (y) =>
-                    `<option value="${y}" ${state.dob.year === y ? "selected" : ""}>${y}</option>`
-                )
-                .join("")}
-            </select>
-          </div>
-        </div>
-
-        <div class="note">Tip: you can scroll each wheel.</div>
-      </div>
-    `);
-
-    const m = document.getElementById("dobMonth");
-    const d = document.getElementById("dobDay");
-    const y = document.getElementById("dobYear");
-
-    const sync = () => {
-      state.dob.month = m.value;
-      state.dob.day = d.value;
-      state.dob.year = y.value;
-      validateContinue();
-    };
-
-    m.addEventListener("change", sync);
-    d.addEventListener("change", sync);
-    y.addEventListener("change", sync);
-
-    validateContinue();
-  }
-
-  function renderBirthTime() {
-    const hours = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
-    const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
-    const ampm = ["AM", "PM"];
-
-    mount(`
-      <div class="inner">
-        <div class="h1">Do you know your birth time?</div>
-        <div class="sub">If you don’t, that’s okay — we can still generate a strong result.</div>
-
-        <div class="wheels" id="timeWheels" style="${
-          state.birthTimeKnown ? "" : "opacity:.45; pointer-events:none;"
-        }">
-          <div class="wheel">
-            <label>Hour</label>
-            <select id="btHour">
-              <option value="" hidden>Select</option>
-              ${hours
-                .map(
-                  (v) =>
-                    `<option value="${v}" ${state.birthTime.hour === v ? "selected" : ""}>${v}</option>`
-                )
-                .join("")}
-            </select>
-          </div>
-
-          <div class="wheel">
-            <label>Minute</label>
-            <select id="btMin">
-              <option value="" hidden>Select</option>
-              ${minutes
-                .map(
-                  (v) =>
-                    `<option value="${v}" ${state.birthTime.minute === v ? "selected" : ""}>${v}</option>`
-                )
-                .join("")}
-            </select>
-          </div>
-
-          <div class="wheel">
-            <label>AM/PM</label>
-            <select id="btAmPm">
-              <option value="" hidden>Select</option>
-              ${ampm
-                .map(
-                  (v) =>
-                    `<option value="${v}" ${state.birthTime.ampm === v ? "selected" : ""}>${v}</option>`
-                )
-                .join("")}
-            </select>
-          </div>
-        </div>
-
-        <div class="small-link" id="dontRemember">
-          ${state.birthTimeKnown ? "I don’t remember" : "Actually, I do know it"}
-        </div>
-      </div>
-    `);
-
-    const $dont = document.getElementById("dontRemember");
-    const $h = document.getElementById("btHour");
-    const $min = document.getElementById("btMin");
-    const $ap = document.getElementById("btAmPm");
-
-    const sync = () => {
-      state.birthTime.hour = $h.value;
-      state.birthTime.minute = $min.value;
-      state.birthTime.ampm = $ap.value;
-      validateContinue();
-    };
-
-    $h.addEventListener("change", sync);
-    $min.addEventListener("change", sync);
-    $ap.addEventListener("change", sync);
-
-    $dont.addEventListener("click", () => {
-      state.birthTimeKnown = !state.birthTimeKnown;
-
-      if (!state.birthTimeKnown) {
-        state.birthTime = { hour: "", minute: "", ampm: "" };
-      }
-
-      renderBirthTime();
-    });
-
-    validateContinue();
-  }
-
-  function renderBirthPlace() {
-    mount(`
-      <div class="inner">
-        <div class="h1">Where were you born?</div>
-        <div class="sub">We’ll try to detect your location — you can edit it.</div>
-
-        <div class="field">
-          <input
-            id="placeInput"
-            type="text"
-            placeholder="City, State/Province, Country"
-            value="${escapeAttr(formatPlace())}"
-          />
-        </div>
-
-        <div class="note" id="placeNote">Detecting your location…</div>
-      </div>
-    `);
-
-    const $input = document.getElementById("placeInput");
-    const $note = document.getElementById("placeNote");
-
-    $input.addEventListener("input", () => {
-      const parsed = parsePlace($input.value);
-      state.birthPlace.city = parsed.city;
-      state.birthPlace.region = parsed.region;
-      state.birthPlace.country = parsed.country;
-      validateContinue();
-    });
-
-    if (state.birthPlace.city && state.birthPlace.region && state.birthPlace.country) {
-      $note.textContent = "You can edit this if needed.";
-      validateContinue();
-      return;
-    }
-
-    if (!navigator.geolocation) {
-      $note.textContent = "Location detection not supported — please type your birthplace.";
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        state.birthPlace.lat = lat;
-        state.birthPlace.lng = lng;
-
-        try {
-          const place = await reverseGeocode(lat, lng);
-
-          if (place) {
-            state.birthPlace.city = place.city;
-            state.birthPlace.region = place.region;
-            state.birthPlace.country = place.country;
-
-            $input.value = formatPlace();
-            $note.textContent = "Detected — you can edit this if needed.";
-          } else {
-            $note.textContent =
-              "We detected your coordinates but couldn’t resolve city/state — please type it in.";
-            $input.value = "";
-          }
-        } catch {
-          $note.textContent = "Couldn’t resolve city/state automatically — please type it in.";
-        }
-
-        validateContinue();
-      },
-      () => {
-        $note.textContent = "Couldn’t access location — please type your birthplace.";
-      },
-      { enableHighAccuracy: false, timeout: 7000, maximumAge: 600000 }
-    );
-
-    validateContinue();
-  }
-
-  function renderMapping() {
-    mount(`
-      <div class="inner mapping">
-        <div class="h1">Mapping your money pattern…</div>
-        <div class="sub">We’re cross-referencing your inputs with our pattern framework.</div>
-
-        <div class="orb" aria-hidden="true"></div>
-
-        <div class="checklist">
-          <div class="check reveal"><div class="dot"></div><div>Reading baseline drivers</div></div>
-          <div class="check reveal"><div class="dot"></div><div>Identifying hidden pressure</div></div>
-          <div class="check reveal"><div class="dot"></div><div>Locating your default safety strategy</div></div>
-          <div class="check reveal"><div class="dot"></div><div>Calibrating your next best shift</div></div>
-        </div>
-
-        <div class="note">This takes a few seconds.</div>
-      </div>
-    `);
-
-    const items = Array.from(document.querySelectorAll(".check.reveal"));
-
-    items.forEach((el, i) => {
-      setTimeout(() => el.classList.add("show"), 550 + i * 800);
-      setTimeout(() => el.classList.add("done"), 950 + i * 800);
-    });
-
-    setTimeout(() => goTo(5), 5200);
-  }
-
-  function renderSnapshotTeaser() {
-    const teaser = {
-      notice:
-        "You’re wired for safety first — not because you’re “bad with money”… but because your system hates uncertainty.",
-      pressure: "When it isn’t predictable, your nervous system reads it as unsafe.",
-      shift: "Make one money decision this week without over-explaining it.",
-    };
-
-    mount(`
-      <div class="inner">
-        <div class="kicker">Quick Snapshot</div>
-        <div class="h1">Your patterns are showing…</div>
-        <div class="sub">This is a preview — keep going and we’ll confirm what’s strongest for you.</div>
-
-        <div class="cards3">
-          <div class="card">
-            <div class="label">What we’re noticing</div>
-            <div class="value">${escapeHtml(teaser.notice)}</div>
-          </div>
-          <div class="card">
-            <div class="label">Your hidden pressure</div>
-            <div class="value">${escapeHtml(teaser.pressure)}</div>
-          </div>
-          <div class="card">
-            <div class="label">Your next micro-shift</div>
-            <div class="value">${escapeHtml(teaser.shift)}</div>
-          </div>
-        </div>
-
-        <div class="note" style="margin-top:14px;">
-          Continue to go deeper — the next questions confirm your strongest pattern.
-        </div>
-      </div>
-    `);
-
-    validateContinue();
-  }
-
-  function renderQuizQ1() {
-    mount(`
-      <div class="inner">
-        <div class="h1">When money feels uncertain, what do you do first?</div>
-        <div class="sub">Pick what feels most automatic.</div>
-
-        <div class="choice-grid" id="q1">
-          ${choiceText("stability", "I tighten everything up and try to make it predictable.")}
-          ${choiceText("freedom", "I look for a bigger move to change the game quickly.")}
-          ${choiceText("avoidance", "I avoid looking too closely until I absolutely have to.")}
-        </div>
-      </div>
-    `);
-
-    const grid = document.getElementById("q1");
-    grid.querySelectorAll(".choice").forEach((el) => {
-      el.addEventListener("click", () => {
-        grid.querySelectorAll(".choice").forEach((x) => x.classList.remove("selected"));
-        el.classList.add("selected");
-
-        const v = el.getAttribute("data-value") || "";
-        state.answers.q1_defaultWhenUncertain = v;
-
-        bumpScore(v);
-        validateContinue();
-      });
-    });
-
-    validateContinue();
-  }
-
-  function renderQuizQ2() {
-    mount(`
-      <div class="inner">
-        <div class="h1">What triggers your money stress the most?</div>
-        <div class="sub">Choose one.</div>
-
-        <div class="choice-grid" id="q2">
-          ${choiceText("stability", "Surprises, unpredictable timing, last-minute expenses.")}
-          ${choiceText("worth", "Feeling like I haven’t earned it enough yet.")}
-          ${choiceText("freedom", "Feeling boxed in or capped no matter how hard I try.")}
-        </div>
-      </div>
-    `);
-
-    const grid = document.getElementById("q2");
-    grid.querySelectorAll(".choice").forEach((el) => {
-      el.addEventListener("click", () => {
-        grid.querySelectorAll(".choice").forEach((x) => x.classList.remove("selected"));
-        el.classList.add("selected");
-
-        const v = el.getAttribute("data-value") || "";
-        state.answers.q2_moneyStressTrigger = v;
-
-        bumpScore(v);
-        validateContinue();
-      });
-    });
-
-    validateContinue();
-  }
-
-  function renderOptIn() {
-    mount(`
-      <div class="inner">
-        <div class="h1">Where should we send your full result?</div>
-        <div class="sub">You’ll get your personalized report + a short next-step plan.</div>
-
-        <div class="field">
-          <input id="fullName" type="text" placeholder="Full name" value="${escapeAttr(state.fullName)}" />
-          <input id="email" type="email" placeholder="Email" value="${escapeAttr(state.email)}" />
-          <input id="phone" type="tel" placeholder="Phone number" value="${escapeAttr(state.phone)}" />
-        </div>
-      </div>
-    `);
-
-    const $n = document.getElementById("fullName");
-    const $e = document.getElementById("email");
-    const $p = document.getElementById("phone");
-
-    const sync = () => {
-      state.fullName = $n.value.trim();
-      state.email = $e.value.trim();
-      state.phone = $p.value.trim();
-      validateContinue();
-    };
-
-    $n.addEventListener("input", sync);
-    $e.addEventListener("input", sync);
-    $p.addEventListener("input", sync);
-
-    validateContinue();
-  }
-
-  function renderExtraData() {
-    mount(`
-      <div class="inner">
-        <div class="h1">One last thing…</div>
-        <div class="sub">How do you currently generate most of your money?</div>
-
-        <div class="choice-grid" id="qExtra">
-          ${choiceText("job", "Job / salary")}
-          ${choiceText("self_employed", "Self-employed / client work")}
-          ${choiceText("business_owner", "Business owner")}
-          ${choiceText("side_hustle", "Side hustle")}
-          ${choiceText("investments", "Investments")}
-          ${choiceText("other", "Other")}
-        </div>
-
-        <div class="note">This helps us segment insights and examples.</div>
-      </div>
-    `);
-
-    const grid = document.getElementById("qExtra");
-    grid.querySelectorAll(".choice").forEach((el) => {
-      el.addEventListener("click", () => {
-        grid.querySelectorAll(".choice").forEach((x) => x.classList.remove("selected"));
-        el.classList.add("selected");
-
-        state.answers.qExtra_incomeSource = el.getAttribute("data-value") || "";
-        validateContinue();
-      });
-    });
-
-    validateContinue();
-  }
-
-  function renderSubmitting() {
-    mount(`
-      <div class="inner mapping">
-        <div class="h1">Generating your result…</div>
-        <div class="sub">One moment — we’re packaging your report.</div>
-        <div class="orb" aria-hidden="true"></div>
-        <div class="note">Do not refresh.</div>
-      </div>
-    `);
-
-    submitToFormspark().catch(() => {
-      mount(`
-        <div class="inner">
-          <div class="h1">Something went sideways.</div>
-          <div class="sub">Please refresh and try again.</div>
-        </div>
-      `);
-
-      $continue.disabled = false;
-      $continue.textContent = "Back";
-      $continue.onclick = () => goTo(8);
-    });
-  }
-
-  // =========================================
-  // Submit
-  // =========================================
-  async function submitToFormspark() {
-    const topPattern = getTopPattern();
-    const tyUrl = `${TY_BASE}${encodeURIComponent(topPattern)}`;
-
-    const payload = {
-      fullName: state.fullName,
-      email: state.email,
-      phone: state.phone,
-
-      gender: state.gender,
-      dob: `${state.dob.year}-${state.dob.month}-${state.dob.day}`,
-
-      birthTimeKnown: state.birthTimeKnown,
-      birthTime: state.birthTimeKnown
-        ? `${state.birthTime.hour}:${state.birthTime.minute} ${state.birthTime.ampm}`
-        : "unknown",
-
-      birthPlace: formatPlace(),
-      birthPlaceLat: state.birthPlace.lat,
-      birthPlaceLng: state.birthPlace.lng,
-
-      answers: state.answers,
-      scores: state.scores,
-      topPattern,
-
-      userAgent: navigator.userAgent,
-      submittedAtISO: new Date().toISOString(),
-    };
-
-    await fetch(FORMSPARK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    window.location.href = tyUrl;
-  }
-
-  // =========================================
-  // Init
-  // =========================================
-  goTo(0);
-})();
+}
+
+/* =========================================================
+   EVENTS
+   ========================================================= */
+backBtn.addEventListener("click", back);
+
+/* init */
+render();
