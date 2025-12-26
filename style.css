@@ -1302,7 +1302,6 @@ body::before{
 /* drifting nebula wash */
 .tyNebula{
   position:absolute;
-  inset:-20%;
   pointer-events:none;
   opacity:.9;
   filter: blur(18px) saturate(1.2);
@@ -1425,7 +1424,7 @@ body::before{
 
 /* card */
 .tyCard{
-  width:min(620px, 92vw);
+  width:95%;
   margin: 0 auto;
   text-align:left;
   border-radius:18px;
