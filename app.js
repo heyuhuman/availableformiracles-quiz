@@ -187,12 +187,12 @@ const screens = [
     validate: (vals) => isValidEmail(vals.email) && isValidPhone(vals.phone)
   },
 
-  /* -------- Results -------- */
+  /* -------- Results (TY page) -------- */
   {
     id: "results",
     type: "results",
-    title: "Audit Mode Results",
-    subtitle: "Here’s exactly how your archetype was calculated."
+    title: "Thank you",
+    subtitle: ""
   }
 ];
 
@@ -1109,18 +1109,30 @@ function renderInterstitialCalc(screen) {
   const icons = (screen.rows || []).map(r => r.icon).filter(Boolean);
   initOrbConstellationPersistent(orb, icons.length ? icons : ["✨"]);
 
-  rowEls.forEach((obj, i) => setTimeout(() => obj.row.classList.add("show"), i * 380));
+  rowEls.forEach((obj, i) => {
+    setTimeout(() => obj.row.classList.add("show"), i * 380);
+  });
 
   rowEls.forEach((obj, i) => {
+    const completeAt = 900 + i * 520;
+
     setTimeout(() => {
       obj.status.textContent = "Complete";
       obj.check.classList.add("done");
-    }, 900 + i * 520);
+
+      obj.row.classList.add("softFade");
+
+      setTimeout(() => {
+        obj.row.classList.add("collapseOut");
+      }, 420);
+    }, completeAt);
   });
 
   const lastCompleteAt = 900 + (rowEls.length - 1) * 520;
-  const showMsgAt = lastCompleteAt + 450;
-  const showBtnAt = showMsgAt + 650;
+  const listGoneAt = lastCompleteAt + 420 + 550 + 220;
+
+  const showMsgAt = listGoneAt;
+  const showBtnAt = showMsgAt + 550;
 
   setTimeout(() => finishMsg.classList.add("show"), showMsgAt);
   setTimeout(() => cta.classList.add("show"), showBtnAt);
@@ -1128,10 +1140,7 @@ function renderInterstitialCalc(screen) {
 
 /* =========================================================
    Interstitial #2 (Forecast Accuracy) — bubbleWrap version
-   - Matches your "INTERSTITIAL #2 ONLY" CSS classnames
-   - Speech + Continue appear ONLY after fill completes
    ========================================================= */
-
 const ORBIT_DOT_COUNT = 12;
 const LIQUID_SPARKLE_COUNT = 18;
 
@@ -1199,7 +1208,6 @@ function animateFill(percentEl, liquidEl, target, duration, onDone) {
 function renderInterstitialBubble(screen) {
   const title = typeof screen.title === "function" ? screen.title(state) : screen.title;
 
-  // Title/subtitle use your existing global helpers (.title/.subtitle)
   screenEl.appendChild(h2Title(title));
   screenEl.appendChild(pSub(screen.subtitle || "Calculating the accuracy of your personalized blueprint..."));
 
@@ -1259,7 +1267,6 @@ function renderInterstitialBubble(screen) {
   wrap.appendChild(bubble);
   screenEl.appendChild(wrap);
 
-  // Speech (hidden until done)
   const speech = document.createElement("div");
   speech.className = "speech";
   speech.style.opacity = "0";
@@ -1278,7 +1285,6 @@ function renderInterstitialBubble(screen) {
   speech.appendChild(dot);
   screenEl.appendChild(speech);
 
-  // CTA (hidden until done)
   const cta = document.createElement("button");
   cta.className = "cta";
   cta.type = "button";
@@ -1289,12 +1295,10 @@ function renderInterstitialBubble(screen) {
   cta.addEventListener("click", next);
   screenEl.appendChild(cta);
 
-  // Visuals
   buildCosmosStars(cosmosStars, STAR_COUNT);
   buildOrbitDots(orbit, ORBIT_DOT_COUNT);
   buildLiquidSparkles(sparkles);
 
-  // Fill → then show speech + CTA
   animateFill(percent, liquid, TARGET_PERCENT, FILL_DURATION_MS, () => {
     speech.style.transition = "opacity .35s ease, transform .35s ease";
     speech.style.opacity = "1";
@@ -1308,7 +1312,6 @@ function renderInterstitialBubble(screen) {
   });
 }
 
-
 /* =========================================================
    CONTACT SCREEN (Email + Phone) + SUBMIT TO FORMSPARK
    ========================================================= */
@@ -1321,7 +1324,6 @@ function renderContact(screen) {
   const wrap = document.createElement("div");
   wrap.className = "formWrap";
 
-  // Email
   const emailField = document.createElement("div");
   emailField.className = "field";
 
@@ -1345,7 +1347,6 @@ function renderContact(screen) {
   emailField.appendChild(emailInput);
   emailField.appendChild(emailHint);
 
-  // Phone
   const phoneField = document.createElement("div");
   phoneField.className = "field";
 
@@ -1429,7 +1430,7 @@ function renderContact(screen) {
 }
 
 /* =========================================================
-   RESULTS / AUDIT VIEW
+   RESULTS (TY PAGE)
    ========================================================= */
 function escapeHtml(str) {
   return String(str)
@@ -1440,105 +1441,148 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
-function renderResults(screen) {
-  screenEl.appendChild(h2Title(screen.title));
-  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+function getInboxUrlForEmail(email) {
+  const e = String(email || "").trim().toLowerCase();
 
-  const win = getWinningArchetype();
+  if (e.includes("@gmail.") || e.includes("@googlemail.")) return "https://mail.google.com/mail/u/0/#inbox";
+  if (e.includes("@outlook.") || e.includes("@hotmail.") || e.includes("@live.")) return "https://outlook.live.com/mail/0/inbox";
+  if (e.includes("@yahoo.")) return "https://mail.yahoo.com";
+  if (e.includes("@icloud.")) return "https://www.icloud.com/mail";
+  return ""; // unknown provider → fallback to mailto
+}
+
+function renderResults(screen) {
+  const name = (state.answers.firstName || "love").trim();
+  const win = getWinningArchetype(); // { archetype, score, sorted }
+  const email = (state.answers.email || "").trim();
+
+  // Make the header feel "done"
+  if (backBtn) backBtn.style.visibility = "hidden";
+  if (progressFill) progressFill.style.width = "100%";
+  if (stepLabel) stepLabel.textContent = `${totalSteps()}/${totalSteps()}`;
+
+  const ty = document.createElement("div");
+  ty.className = "tyPage";
+
+  const neb = document.createElement("div");
+  neb.className = "tyNebula";
+  ty.appendChild(neb);
+
+  const header = document.createElement("header");
+  header.className = "tyHeader";
+
+  const kicker = document.createElement("div");
+  kicker.className = "tyKicker";
+  kicker.textContent = "Your Personalized Money Blueprint";
+  header.appendChild(kicker);
+
+  ty.appendChild(header);
+
+  const main = document.createElement("main");
+  main.className = "tyMain";
+
+  const hero = document.createElement("section");
+  hero.className = "tyHero";
+
+  const ring = document.createElement("div");
+  ring.className = "tyGlowRing";
+  ring.setAttribute("aria-hidden", "true");
+  hero.appendChild(ring);
+
+  const h1 = document.createElement("h1");
+  h1.className = "tyTitle";
+  h1.id = "tyTitle";
+  h1.textContent = `Thank you ${name}.`;
+  hero.appendChild(h1);
+
+  const lead = document.createElement("p");
+  lead.className = "tyLead";
+  lead.innerHTML = `Your Magic Money Archetype is <span class="tyArchetype" id="tyArchetype">${escapeHtml(win.archetype)}</span>`;
+  hero.appendChild(lead);
 
   const card = document.createElement("div");
-  card.className = "audit";
+  card.className = "tyCard";
 
-  const head = document.createElement("div");
-  head.className = "auditHeader";
+  const pBody = document.createElement("p");
+  pBody.className = "tyBody";
+  pBody.innerHTML = `<span class="tyStrong">What does that mean??</span> We can’t wait to share it with you!`;
+  card.appendChild(pBody);
 
-  const left = document.createElement("div");
-  left.innerHTML = `<strong>Winning Archetype:</strong> ${win.archetype}`;
+  const pLine1 = document.createElement("p");
+  pLine1.className = "tyBody";
+  pLine1.textContent = "Our team is reviewing all of your data and preparing a personalized money blueprint for you.";
+  card.appendChild(pLine1);
 
-  const right = document.createElement("div");
-  right.style.opacity = ".85";
-  right.textContent = `Totals: ${win.sorted.map(([k, v]) => `${k} ${v}`).join(" • ")}`;
+  const pLine2 = document.createElement("p");
+  pLine2.className = "tyBody";
+  pLine2.innerHTML = `<strong>You can expect to receive it within 24–48 hours.</strong>`;
+  card.appendChild(pLine2);
 
-  head.appendChild(left);
-  head.appendChild(right);
+  const divi = document.createElement("div");
+  divi.className = "tyDivider";
+  card.appendChild(divi);
 
-  const body = document.createElement("div");
-  body.className = "auditBody";
+  const bonus = document.createElement("p");
+  bonus.className = "tyBonus";
+  bonus.innerHTML = `<span class="tyBonusLabel">BONUS:</span> While you wait, we are sending you a wealth activation meditation. This is pure magic in audio form.`;
+  card.appendChild(bonus);
 
-  const meta = document.createElement("div");
-  meta.className = "auditRow";
-  meta.innerHTML = `
-    <div class="auditQ">Captured inputs</div>
-    <div class="auditA">
-      <div><strong>Name:</strong> ${escapeHtml(state.answers.firstName || "")}</div>
-      <div><strong>Gender:</strong> ${escapeHtml(state.answers.gender || "")}</div>
-      <div><strong>DOB:</strong> ${escapeHtml(state.answers.dob || "")}</div>
-      <div><strong>Birth Time:</strong> ${escapeHtml(state.answers.birthTime || "")}</div>
-      <div><strong>Birthplace:</strong> ${escapeHtml(state.answers.birthPlace || "")}</div>
-      <div><strong>Email:</strong> ${escapeHtml(state.answers.email || "")}</div>
-      <div><strong>Phone:</strong> ${escapeHtml(normalizePhone(state.answers.phone || ""))}</div>
-    </div>
-  `;
-  body.appendChild(meta);
+  const btn = document.createElement("button");
+  btn.className = "tyCta";
+  btn.type = "button";
+  btn.id = "tyCta";
+  btn.textContent = "CHECK YOUR EMAIL RIGHT NOW";
+  card.appendChild(btn);
 
-  state.auditTrail.forEach(item => {
-    const row = document.createElement("div");
-    row.className = "auditRow";
+  const hint = document.createElement("p");
+  hint.className = "tyHint";
+  hint.textContent = "Psst… check Promotions/Spam if you don’t see it in 2 minutes.";
+  card.appendChild(hint);
 
-    const q = document.createElement("div");
-    q.className = "auditQ";
-    q.textContent = item.question;
+  hero.appendChild(card);
 
-    const a = document.createElement("div");
-    a.className = "auditA";
-    a.textContent = `Answer: ${item.answerLabel}`;
+  const footer = document.createElement("div");
+  footer.className = "tyFooterNote";
 
-    const s = document.createElement("div");
-    s.className = "auditS";
-    s.textContent = `Scoring: ${Object.entries(item.scoreDelta).map(([k, v]) => `+${v} ${k}`).join(" • ")}`;
+  const dot = document.createElement("span");
+  dot.className = "tyDot";
 
-    row.appendChild(q);
-    row.appendChild(a);
-    row.appendChild(s);
-    body.appendChild(row);
+  const tip = document.createElement("span");
+  tip.textContent = "Tip: Screenshot this page if you love your result.";
+
+  footer.appendChild(dot);
+  footer.appendChild(tip);
+  hero.appendChild(footer);
+
+  main.appendChild(hero);
+  ty.appendChild(main);
+
+  screenEl.appendChild(ty);
+
+  // animate CTA pulse
+  setTimeout(() => btn.classList.add("pulse"), 700);
+
+  // functional button behavior:
+  // - If provider is known (gmail/outlook/yahoo/icloud) open inbox in a new tab
+  // - Otherwise open default mail app via mailto
+  btn.addEventListener("click", () => {
+    const inbox = getInboxUrlForEmail(email);
+
+    // micro feedback
+    const original = btn.textContent;
+    btn.textContent = "OPENING INBOX…";
+    setTimeout(() => (btn.textContent = original), 900);
+
+    if (inbox) {
+      window.open(inbox, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    // fallback: opens default mail client
+    const subject = encodeURIComponent("Your Wealth Activation Meditation");
+    const body = encodeURIComponent("Search your inbox for your Wealth Activation Meditation… check Promotions/Spam if needed.");
+    window.location.href = `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`;
   });
-
-  const open1 = document.createElement("div");
-  open1.className = "auditRow";
-  open1.innerHTML = `
-    <div class="auditQ">Open response</div>
-    <div class="auditA"><strong>Q:</strong> ${escapeHtml(screens.find(x => x.id === "moneyQuestion1")?.title || "")}<br>
-      <strong>A:</strong> ${escapeHtml(state.answers.moneyQuestion1 || "")}
-    </div>
-  `;
-  body.appendChild(open1);
-
-  const open2 = document.createElement("div");
-  open2.className = "auditRow";
-  open2.innerHTML = `
-    <div class="auditQ">Open response</div>
-    <div class="auditA"><strong>Q:</strong> ${escapeHtml(screens.find(x => x.id === "moneyQuestion2")?.title || "")}<br>
-      <strong>A:</strong> ${escapeHtml(state.answers.moneyQuestion2 || "")}
-    </div>
-  `;
-  body.appendChild(open2);
-
-  card.appendChild(head);
-  card.appendChild(body);
-  screenEl.appendChild(card);
-
-  const restart = document.createElement("button");
-  restart.className = "cta";
-  restart.type = "button";
-  restart.textContent = "Restart";
-  restart.addEventListener("click", () => {
-    state.idx = 0;
-    state.answers = {};
-    state.score = { STABILITY: 0, EXPANSION: 0, LUXURY: 0, RESET: 0 };
-    state.auditTrail = [];
-    render();
-  });
-  screenEl.appendChild(restart);
 }
 
 /* =========================================================
