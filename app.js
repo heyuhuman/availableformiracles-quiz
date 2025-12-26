@@ -1263,100 +1263,68 @@ function escapeHtml(str) {
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
+function formatArchetypeLabel(a) {
+  const map = {
+    STABILITY: "Stability",
+    EXPANSION: "Expansion",
+    LUXURY: "Luxury",
+    RESET: "Reset"
+  };
+  return map[a] || a;
+}
+function formatArchetypeLabel(a) {
+  const map = {
+    STABILITY: "Stability",
+    EXPANSION: "Expansion",
+    LUXURY: "Luxury",
+    RESET: "Reset"
+  };
+  return map[a] || a;
+}
 
 function renderResults(screen) {
-  screenEl.appendChild(h2Title(screen.title));
-  if (screen.subtitle) screenEl.appendChild(pSub(screen.subtitle));
+  const name = (state.answers.firstName || "").trim();
+  const safeName = escapeHtml(name || "Love");
 
   const win = getWinningArchetype();
+  const archetypeLabel = formatArchetypeLabel(win.archetype);
 
+  // Title line
+  screenEl.appendChild(
+    h2Title(`${safeName}, your primary money archetype is ${archetypeLabel}.`)
+  );
+
+  // Body card
   const card = document.createElement("div");
-  card.className = "audit";
+  card.className = "resultsCard";
 
-  const head = document.createElement("div");
-  head.className = "auditHeader";
-  const left = document.createElement("div");
-  left.innerHTML = `<strong>Winning Archetype:</strong> ${win.archetype}`;
-  const right = document.createElement("div");
-  right.style.opacity = ".85";
-  right.textContent = `Totals: ${win.sorted.map(([k,v])=>`${k} ${v}`).join(" • ")}`;
-  head.appendChild(left);
-  head.appendChild(right);
+  const p1 = document.createElement("p");
+  p1.className = "resultsP";
+  p1.textContent =
+    "Want to know what that means? We are processing your personalized blueprint as we speak. Our team is reviewing all of your data and will send you the personalized report within 24–48 hours.";
 
-  const body = document.createElement("div");
-  body.className = "auditBody";
+  const divider = document.createElement("div");
+  divider.className = "resultsDivider";
 
-  const meta = document.createElement("div");
-  meta.className = "auditRow";
-  meta.innerHTML = `
-    <div class="auditQ">Captured inputs</div>
-    <div class="auditA">
-      <div><strong>Name:</strong> ${escapeHtml(state.answers.firstName || "")}</div>
-      <div><strong>Gender:</strong> ${escapeHtml(state.answers.gender || "")}</div>
-      <div><strong>DOB:</strong> ${escapeHtml(state.answers.dob || "")}</div>
-      <div><strong>Birth Time:</strong> ${escapeHtml(state.answers.birthTime || "")}</div>
-      <div><strong>Birthplace:</strong> ${escapeHtml(state.answers.birthPlace || "")}</div>
-    </div>
-  `;
-  body.appendChild(meta);
+  const ns = document.createElement("div");
+  ns.className = "nextSteps";
 
-  state.auditTrail.forEach(item => {
-    const row = document.createElement("div");
-    row.className = "auditRow";
+  const nsTitle = document.createElement("div");
+  nsTitle.className = "nextStepsTitle";
+  nsTitle.textContent = "BONUS GIFT";
 
-    const q = document.createElement("div");
-    q.className = "auditQ";
-    q.textContent = item.question;
+  const nsText = document.createElement("div");
+  nsText.className = "nextStepsText";
+  nsText.textContent = "We want to give you something special while you wait! Check your email for a free Wealth Portal Activation. This is pure audio money magic!";
 
-    const a = document.createElement("div");
-    a.className = "auditA";
-    a.textContent = `Answer: ${item.answerLabel}`;
+  ns.appendChild(nsTitle);
+  ns.appendChild(nsText);
 
-    const s = document.createElement("div");
-    s.className = "auditS";
-    s.textContent = `Scoring: ${Object.entries(item.scoreDelta).map(([k,v]) => `+${v} ${k}`).join(" • ")}`;
+  card.appendChild(p1);
+  card.appendChild(divider);
+  card.appendChild(ns);
 
-    row.appendChild(q);
-    row.appendChild(a);
-    row.appendChild(s);
-    body.appendChild(row);
-  });
-
-  const open1 = document.createElement("div");
-  open1.className = "auditRow";
-  open1.innerHTML = `
-    <div class="auditQ">Open response</div>
-    <div class="auditA"><strong>Q:</strong> ${escapeHtml(screens.find(x=>x.id==="moneyQuestion1")?.title || "")}<br>
-      <strong>A:</strong> ${escapeHtml(state.answers.moneyQuestion1 || "")}
-    </div>
-  `;
-  body.appendChild(open1);
-
-  const open2 = document.createElement("div");
-  open2.className = "auditRow";
-  open2.innerHTML = `
-    <div class="auditQ">Open response</div>
-    <div class="auditA"><strong>Q:</strong> ${escapeHtml(screens.find(x=>x.id==="moneyQuestion2")?.title || "")}<br>
-      <strong>A:</strong> ${escapeHtml(state.answers.moneyQuestion2 || "")}
-    </div>
-  `;
-  body.appendChild(open2);
-
-  card.appendChild(head);
-  card.appendChild(body);
   screenEl.appendChild(card);
-
-  const restart = document.createElement("button");
-  restart.className = "cta";
-  restart.textContent = "Restart";
-  restart.addEventListener("click", () => {
-    state.idx = 0;
-    state.answers = {};
-    state.score = { STABILITY:0, EXPANSION:0, LUXURY:0, RESET:0 };
-    state.auditTrail = [];
-    render();
-  });
-  screenEl.appendChild(restart);
 }
 
 /* =========================================================
