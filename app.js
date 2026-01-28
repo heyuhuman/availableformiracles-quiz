@@ -168,15 +168,7 @@ const screens = [
     placeholder: "Type here...",
     validate: (vals) => !!vals.moneyQuestion1?.trim()
   },
-  {
-    id: "moneyQuestion2",
-    type: "textarea",
-    title: "If this blueprint answered one money question for you… what would you want it to be?",
-    subtitle: "Type N/A if you don’t have one right now. Just know it will limit the level of detail inside the report.",
-    placeholder: "Type here...",
-    validate: (vals) => !!vals.moneyQuestion2?.trim()
-  },
-
+ 
   /* -------- EMAIL + PHONE (SUBMIT TO FORMSPARK BEFORE RESULTS) -------- */
   {
     id: "contact",
